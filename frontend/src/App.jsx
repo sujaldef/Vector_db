@@ -5,11 +5,9 @@ import {
   Database,
   Gauge,
   Search,
-  Server,
   Sparkles,
 } from 'lucide-react';
-import { getHealth, searchDocuments } from './api/search';
-import './App.css';
+import { getHealth, searchDocuments, searchExact } from './api/search';
 
 const SUGGESTIONS = [
   'wall street bears',
@@ -17,13 +15,16 @@ const SUGGESTIONS = [
   'commercial aerospace investment',
 ];
 
+const formatMs = (value) => `${Number(value || 0).toFixed(2)} ms`;
+
 export default function App() {
   const [query, setQuery] = useState('');
-  const [topK, setTopK] = useState(10);
-  const [efSearch, setEfSearch] = useState(200);
   const [results, setResults] = useState(null);
+  const [exactResults, setExactResults] = useState(null);
+  const [health, setHealth] = useState(null);
   const [status, setStatus] = useState('checking');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -32,8 +33,11 @@ export default function App() {
 
     const checkHealth = async () => {
       try {
-        await getHealth();
-        if (!cancelled) setStatus('online');
+        const data = await getHealth();
+        if (!cancelled) {
+          setHealth(data);
+          setStatus('online');
+        }
       } catch {
         if (!cancelled) {
           setStatus('offline');
@@ -51,36 +55,66 @@ export default function App() {
 
   async function runSearch(event, value = query) {
     event?.preventDefault();
-    if (!value.trim()) {
+    const cleanQuery = value.trim();
+    if (!cleanQuery) {
       setError('Enter a search phrase to find related documents.');
       setResults(null);
+      setExactResults(null);
       return;
     }
+
     setLoading(true);
     setError('');
-    try {
-      const data = await searchDocuments(value.trim(), topK, efSearch);
-      setResults(data);
+    setNotice('');
+    const responses = await Promise.allSettled([
+      searchDocuments(cleanQuery, 10, 200),
+      searchExact(cleanQuery, 10),
+    ]);
+    const [hnswResponse, exactResponse] = responses;
+
+    if (hnswResponse.status === 'fulfilled') {
+      setResults(hnswResponse.value);
       setStatus('online');
-    } catch (requestError) {
-      setError(requestError.message);
+    } else {
+      setError(hnswResponse.reason?.message || 'HNSW search failed.');
       setStatus('offline');
-    } finally {
-      setLoading(false);
     }
+    if (exactResponse.status === 'fulfilled') {
+      setExactResults(exactResponse.value);
+    } else {
+      setNotice('Exact comparison was unavailable for this query.');
+    }
+    setLoading(false);
   }
 
+  const exactIds = new Set(exactResults?.results?.map((item) => item.id) || []);
+  const recall =
+    results && exactResults
+      ? results.results.filter((item) => exactIds.has(item.id)).length /
+        Math.max(exactResults.count, 1)
+      : null;
+  const speedup =
+    results && exactResults && results.latency_ms > 0
+      ? exactResults.latency_ms / results.latency_ms
+      : null;
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="wordmark" href="/" aria-label="Vector Database home">
-          <span className="wordmark-mark">
+    <div className="min-h-screen bg-[#e8eee8] text-[#17231f] selection:bg-[#f6cf8f]">
+      <header className="mx-auto flex max-w-[1240px] items-center justify-between border-b border-[#b9c6bc] px-5 py-5 sm:px-10">
+        <a
+          className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-wide"
+          href="/"
+          aria-label="Vector Database home"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-[#183d32] text-[#f6cf8f]">
             <Database size={17} />
           </span>
-          <span>VECTOR / DB</span>
+          VECTOR / DB
         </a>
-        <div className="status-pill">
-          <span className={`status-dot ${status}`} />
+        <div className="flex items-center gap-2 font-mono text-[10px] tracking-widest">
+          <span
+            className={`h-2 w-2 rounded-full ${status === 'online' ? 'bg-[#287d59]' : status === 'offline' ? 'bg-[#ba4c3c]' : 'bg-[#b5aaa0]'}`}
+          />
           {status === 'online'
             ? 'INDEX ONLINE'
             : status === 'offline'
@@ -89,36 +123,48 @@ export default function App() {
         </div>
       </header>
 
-      <main>
-        <section className="hero-section">
-          <div className="eyebrow">
+      <main className="mx-auto max-w-[1240px] px-5 pb-24 pt-14 sm:px-10 sm:pt-20">
+        <section className="max-w-3xl">
+          <div className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-[#5c7167]">
             <Sparkles size={14} /> SEMANTIC RETRIEVAL LAB
           </div>
-          <h1>
-            Search the corpus
-            <br />
-            <em>by meaning.</em>
-          </h1>
-          <p className="hero-copy">
-            A handwritten HNSW index over 119,921 AG News embeddings. Ask a
-            question, not a keyword.
+      <h1 className="mt-5 text-6xl !text-[#c15f45] font-semibold leading-[0.94] tracking-[-0.06em] sm:text-8xl">
+  Search the corpus
+  <br />
+  <em className="not-italic !text-[#c15f45]">
+    by meaning.
+  </em>
+</h1>
+          <p className="mt-6 max-w-xl text-base leading-relaxed text-[#637168]">
+            A handwritten HNSW index over{' '}
+            {health?.vectors?.toLocaleString() || '119,921'} AG News embeddings.
+            Ask a question, not a keyword.
           </p>
-          <form className="search-panel" onSubmit={runSearch}>
-            <Search size={19} className="search-icon" />
+          <form
+            className="mt-9 flex items-center gap-3 border border-[#b9c6bc] bg-[#fffdf8] p-2 pl-4 shadow-[8px_8px_0_#c9d5ca] max-sm:shadow-none"
+            onSubmit={runSearch}
+          >
+            <Search size={19} className="shrink-0 text-[#65766d]" />
             <input
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#99a59d]"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Try: how are oil prices affecting markets?"
               aria-label="Search documents"
             />
-            <button className="search-button" type="submit" disabled={loading}>
+            <button
+              className="flex items-center gap-3 bg-[#183d32] px-4 py-3 text-sm font-semibold text-[#fffdf8] disabled:cursor-wait disabled:opacity-60"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? 'Searching' : 'Search'} <ArrowRight size={17} />
             </button>
           </form>
-          <div className="suggestions">
+          <div className="mt-5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-[#76847b]">
             <span>Try a query</span>
             {SUGGESTIONS.map((suggestion) => (
               <button
+                className="rounded-full border border-[#bdc9bf] px-2.5 py-1 text-[#496057] hover:bg-[#fffdf8]"
                 key={suggestion}
                 type="button"
                 onClick={() => {
@@ -131,136 +177,202 @@ export default function App() {
             ))}
           </div>
           {error && (
-            <div className="error-banner" role="alert">
-              {error}{' '}
-              <button type="button" onClick={() => runSearch(null)}>
+            <div
+              className="mt-6 flex justify-between gap-3 border border-[#df9b89] bg-[#f9ddd4] p-3 text-sm text-[#853f34]"
+              role="alert"
+            >
+              <span>{error}</span>
+              <button
+                className="underline"
+                type="button"
+                onClick={() => runSearch(null)}
+              >
                 Retry
               </button>
             </div>
           )}
+          {notice && <p className="mt-4 text-sm text-[#8a6741]">{notice}</p>}
         </section>
 
-        <section className="stats-strip" aria-label="Index statistics">
-          <div>
-            <span className="stat-label">Corpus</span>
-            <strong>119,921</strong>
-            <small>documents indexed</small>
+        <section
+          className="mt-24 grid grid-cols-2 border-y border-[#b9c6bc] sm:grid-cols-5"
+          aria-label="Index statistics"
+        >
+          <div className="border-b border-r border-[#b9c6bc] p-4 sm:border-b-0">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#76847b]">
+              Corpus
+            </span>
+            <strong className="mt-2 block text-2xl">
+              {health?.vectors?.toLocaleString() || '119,921'}
+            </strong>
+            <small className="font-mono text-[10px] text-[#829087]">
+              documents indexed
+            </small>
           </div>
-          <div>
-            <span className="stat-label">Dimensions</span>
-            <strong>384</strong>
-            <small>normalized values</small>
+          <div className="border-b border-[#b9c6bc] p-4 sm:border-b-0 sm:border-r">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#76847b]">
+              Dimensions
+            </span>
+            <strong className="mt-2 block text-2xl">
+              {health?.dimension || 384}
+            </strong>
+            <small className="font-mono text-[10px] text-[#829087]">
+              normalized values
+            </small>
           </div>
-          <div>
-            <span className="stat-label">Index</span>
-            <strong>HNSW</strong>
-            <small>M12 / ef 200</small>
+          <div className="border-r border-[#b9c6bc] p-4">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#76847b]">
+              Index
+            </span>
+            <strong className="mt-2 block text-2xl">HNSW</strong>
+            <small className="font-mono text-[10px] text-[#829087]">
+              M12 / ef 200
+            </small>
           </div>
-          <div>
-            <span className="stat-label">Benchmark</span>
-            <strong>84.4%</strong>
-            <small>Recall@10</small>
+          <div className="border-r border-[#b9c6bc] p-4">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#76847b]">
+              Live recall
+            </span>
+            <strong className="mt-2 block text-2xl text-[#287d59]">
+              {recall == null ? '—' : `${(recall * 100).toFixed(1)}%`}
+            </strong>
+            <small className="font-mono text-[10px] text-[#829087]">
+              HNSW vs exact
+            </small>
           </div>
-          <div>
-            <span className="stat-label">Speedup</span>
-            <strong>3.27×</strong>
-            <small>vs exact search</small>
+          <div className="col-span-2 p-4 sm:col-span-1">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#76847b]">
+              Live speedup
+            </span>
+            <strong className="mt-2 block text-2xl text-[#c15f45]">
+              {speedup == null ? '—' : `${speedup.toFixed(2)}×`}
+            </strong>
+            <small className="font-mono text-[10px] text-[#829087]">
+              exact / HNSW
+            </small>
           </div>
         </section>
 
-        <section className="workspace">
-          <div className="results-column">
-            <div className="section-heading">
-              <div>
-                <span className="kicker">RETRIEVAL OUTPUT</span>
-                <h2>
-                  {results
-                    ? `Results for “${results.query}”`
-                    : 'Waiting for a query'}
-                </h2>
-              </div>
-              {results && (
-                <span className="result-count">
-                  {results.count} matches <span>· {results.latency_ms} ms</span>
-                </span>
-              )}
+<section className="mt-16 grid gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
+  <div>
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <span className="font-mono text-[11px] tracking-[0.12em] text-[#5c7167]">
+          RETRIEVAL OUTPUT
+        </span>
+
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight !text-[#304038]">
+          {results
+            ? `Results for “${results.query}”`
+            : 'Waiting for a query'}
+        </h2>
+      </div>
+
+      {results && (
+        <span className="font-mono text-[11px] !text-[#65766d]">
+          {results.count} matches · HNSW {formatMs(results.latency_ms)}{' '}
+          · Exact {exactResults ? formatMs(exactResults.latency_ms) : '—'}
+        </span>
+      )}
+    </div>
+
+    {results?.results?.length ? (
+      results.results.map((result) => {
+        const confirmed = exactIds.has(result.id);
+
+        return (
+          <article
+            className="mb-3 border border-[#b9c6bc] bg-[#fffdf8]/70 p-5"
+            key={`${result.id}-${result.rank}`}
+          >
+            <div className="flex items-center gap-3 font-mono text-[11px] !text-[#79887e]">
+              <span className="text-base !text-[#c15f45]">
+                {String(result.rank).padStart(2, '0')}
+              </span>
+
+              <span>ID {result.id}</span>
+
+              <span className="ml-auto flex items-center gap-1.5 !text-[#287d59]">
+                <Gauge size={14} />
+                {result.score.toFixed(4)}
+              </span>
             </div>
-            {results?.results?.length ? (
-              results.results.map((result) => (
-                <article
-                  className="result-card"
-                  key={`${result.id}-${result.rank}`}
-                >
-                  <div className="result-meta">
-                    <span className="rank">
-                      {String(result.rank).padStart(2, '0')}
-                    </span>
-                    <span>ID {result.id}</span>
-                    <span className="score">
-                      <Gauge size={14} /> {result.score.toFixed(4)}
-                    </span>
-                  </div>
-                  <p>{result.text}</p>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">
-                <Search size={28} />
-                <p>Semantic results will appear here.</p>
-                <span>
-                  The API returns real documents from the indexed corpus.
-                </span>
-              </div>
+
+            <p className="mt-4 text-sm leading-relaxed !text-[#304038]">
+              {result.text}
+            </p>
+
+            {exactResults && !confirmed && (
+              <span className="mt-3 inline-block border border-[#dfb675] bg-[#f6cf8f]/40 px-2 py-1 font-mono text-[10px] !text-[#765a35]">
+                not in exact top 10
+              </span>
             )}
-          </div>
-          <aside className="control-column">
-            <div className="control-card">
-              <div className="kicker">QUERY CONTROLS</div>
-              <h3>Search depth</h3>
-              <p>Increase the beam to explore more graph candidates.</p>
-              <label htmlFor="ef-search">
-                ef_search <output>{efSearch}</output>
-              </label>
-              <input
-                id="ef-search"
-                type="range"
-                min="10"
-                max="200"
-                step="10"
-                value={efSearch}
-                onChange={(event) => setEfSearch(Number(event.target.value))}
-              />
-              <div className="range-ends">
-                <span>fast</span>
-                <span>thorough</span>
-              </div>
-              <label htmlFor="top-k">
-                Top results <output>{topK}</output>
-              </label>
-              <input
-                id="top-k"
-                type="range"
-                min="1"
-                max="20"
-                value={topK}
-                onChange={(event) => setTopK(Number(event.target.value))}
-              />
-            </div>
-            <div className="note-card">
-              <Server size={17} />
-              <div>
-                <strong>Live index</strong>
-                <p>
-                  Results are served by the FastAPI backend. No demo data or
-                  fallback results.
-                </p>
-              </div>
-            </div>
-          </aside>
-        </section>
+          </article>
+        );
+      })
+    ) : (
+      <div className="grid min-h-64 place-items-center border border-dashed border-[#b9c6bc] text-center !text-[#78867d]">
+        <div>
+          <Search size={28} className="mx-auto" />
+
+          <p className="mt-3 !text-[#405349]">
+            Semantic results will appear here.
+          </p>
+
+          <span className="font-mono text-[11px] !text-[#78867d]">
+            HNSW and exact search run together for comparison.
+          </span>
+        </div>
+      </div>
+    )}
+  </div>
+
+  <aside className="h-fit border border-[#b9c6bc] bg-[#dce6dd] p-5 !text-[#304038]">
+    <div className="font-mono text-[11px] tracking-[0.12em] !text-[#5c7167]">
+      COMPARISON
+    </div>
+
+    <h3 className="mt-3 text-xl font-semibold !text-[#304038]">
+      Approximate vs exact
+    </h3>
+
+    <p className="mt-2 text-sm leading-relaxed !text-[#687970]">
+      Every query runs through both engines. The exact scan is the
+      ground truth; live metrics show what HNSW trades for speed.
+    </p>
+
+    {results && exactResults && (
+      <dl className="mt-6 space-y-3 border-t border-[#b9c6bc] pt-4 font-mono text-xs !text-[#304038]">
+        <div className="flex justify-between">
+          <dt>Recall@10</dt>
+          <dd className="!text-[#287d59]">
+            {(recall * 100).toFixed(1)}%
+          </dd>
+        </div>
+
+        <div className="flex justify-between">
+          <dt>Speedup</dt>
+          <dd className="!text-[#c15f45]">
+            {speedup.toFixed(2)}×
+          </dd>
+        </div>
+
+        <div className="flex justify-between">
+          <dt>HNSW latency</dt>
+          <dd>{formatMs(results.latency_ms)}</dd>
+        </div>
+
+        <div className="flex justify-between">
+          <dt>Exact latency</dt>
+          <dd>{formatMs(exactResults.latency_ms)}</dd>
+        </div>
+      </dl>
+    )}
+  </aside>
+</section>
       </main>
-      <footer>
-        <span>
+      <footer className="mx-auto flex max-w-[1240px] justify-between border-t border-[#b9c6bc] px-5 py-5 font-mono text-[10px] tracking-widest text-[#7a887f] sm:px-10">
+        <span className="flex items-center gap-2">
           <Activity size={14} /> VECTOR DATABASE PROJECT
         </span>
         <span>AG NEWS · COSINE SIMILARITY</span>

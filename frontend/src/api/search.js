@@ -42,6 +42,13 @@ export function searchDocuments(query, top_k = 10, ef_search = 200) {
   });
 }
 
+export function searchExact(query, top_k = 10) {
+  return request('/api/search/exact', {
+    method: 'POST',
+    body: JSON.stringify({ query, top_k }),
+  });
+}
+
 export function getHealth() {
   return request('/api/health');
 }

@@ -12,3 +12,6 @@ env/
 
 # Generated embeddings
 data/embeddings/
+
+# Generated runtime index cache
+backend/data/hnsw_index.pkl

@@ -1,0 +1,327 @@
+\n======================================================================\n01_DATA_EXPLORATION.IPYNB\n======================================================================\nNo saved output was found in this notebook.\n\n======================================================================\n02_EMBEDDING_COLLAB.IPYNB\n======================================================================\n\nCELL 1: Code cell\n----------------------------------------------------------------------\nMounted at /content/drive\n\nCELL 2: Code cell\n----------------------------------------------------------------------\nData folder exists: True
+Files/folders:
+/content/drive/MyDrive/data/raw
+/content/drive/MyDrive/data/processed
+/content/drive/MyDrive/data/embeddings\n\nCELL 3: Code cell\n----------------------------------------------------------------------\nFull dataset exists: True
+Dev dataset exists: True\n\nCELL 5: Code cell\n----------------------------------------------------------------------\nTotal documents: 119921
+Total texts: 119921
+First document:
+{'id': 1, 'text': "Wall St. Bears Claw Back Into the Black (Reuters) Reuters - Short-sellers, Wall Street's dwindling band of ultra-cynics, are seeing green again.", 'metadata': {'category': 2}}\n\nCELL 6: Code cell\n----------------------------------------------------------------------\nWarning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\nmodules.json:   0%|          | 0.00/349 [00:00<?, ?B/s]\nconfig_sentence_transformers.json:   0%|          | 0.00/116 [00:00<?, ?B/s]\nREADME.md:   0%|          | 0.00/10.5k [00:00<?, ?B/s]\nsentence_bert_config.json:   0%|          | 0.00/53.0 [00:00<?, ?B/s]\nconfig.json:   0%|          | 0.00/612 [00:00<?, ?B/s]\nmodel.safetensors: reconstructing file:   0%|          |  0.00B / 90.9MB\nmodel.safetensors: downloading bytes:           |  0.00B\nLoading weights:   0%|          | 0/103 [00:00<?, ?it/s]\ntokenizer_config.json:   0%|          | 0.00/350 [00:00<?, ?B/s]\nvocab.txt:   0%|          | 0.00/232k [00:00<?, ?B/s]\ntokenizer.json:   0%|          | 0.00/466k [00:00<?, ?B/s]\nspecial_tokens_map.json:   0%|          | 0.00/112 [00:00<?, ?B/s]\nconfig.json:   0%|          | 0.00/190 [00:00<?, ?B/s]\nModel loaded
+Embedding dimension: 384\n\nCELL 7: Code cell\n----------------------------------------------------------------------\nGPU available: True
+GPU: Tesla T4\n\nCELL 8: Code cell\n----------------------------------------------------------------------\nUsing device: cuda\n\nCELL 9: Code cell\n----------------------------------------------------------------------\nBatches:   0%|          | 0/937 [00:00<?, ?it/s]\nEmbedding shape: (119921, 384)
+Data type: float32\n\nCELL 10: Code cell\n----------------------------------------------------------------------\nSaved successfully!
+Location: /content/drive/MyDrive/data/embeddings\n\nCELL 11: Code cell\n----------------------------------------------------------------------\nEmbeddings: True
+IDs: True
+Metadata: True\n\n======================================================================\n03_EXACT_SEARCH.IPYNB\n======================================================================\n\nCELL 2: Code cell\n----------------------------------------------------------------------\nDocuments: ..\data\processed\documents.jsonl
+Embeddings: ..\data\embeddings\embeddings.npy
+IDs: ..\data\embeddings\ids.npy\n\nCELL 3: Code cell\n----------------------------------------------------------------------\nDocuments loaded: 119921
+{'id': 1, 'text': "Wall St. Bears Claw Back Into the Black (Reuters) Reuters - Short-sellers, Wall Street's dwindling band of ultra-cynics, are seeing green again.", 'metadata': {'category': 2}}\n\nCELL 4: Code cell\n----------------------------------------------------------------------\nEmbeddings shape: (119921, 384)
+IDs shape: (119921,)
+Embedding dtype: float32\n\nCELL 6: Code cell\n----------------------------------------------------------------------\nIndex created with 119921 vectors
+Dimension: 384\n\nCELL 8: Code cell\n----------------------------------------------------------------------\nIndex created with 119921 vectors
+Dimension: 384\n\nCELL 9: Code cell\n----------------------------------------------------------------------\nRank 1 | ID: 1 | Score: 1.0000
+Rank 2 | ID: 10 | Score: 0.9671
+Rank 3 | ID: 3807 | Score: 0.5746
+Rank 4 | ID: 8755 | Score: 0.5269
+Rank 5 | ID: 10600 | Score: 0.5211\n\nCELL 10: Code cell\n----------------------------------------------------------------------\n================================================================================
+Rank: 1
+ID: 1
+Similarity: 1.0000
+Text: Wall St. Bears Claw Back Into the Black (Reuters) Reuters - Short-sellers, Wall Street's dwindling band of ultra-cynics, are seeing green again.
+
+================================================================================
+Rank: 2
+ID: 10
+Similarity: 0.9671
+Text: Wall St. Bears Claw Back Into the Black NEW YORK (Reuters) - Short-sellers, Wall Street's dwindling band of ultra-cynics, are seeing green again.
+
+================================================================================
+Rank: 3
+ID: 3807
+Similarity: 0.5746
+Text: Wall St. Seen Lower on Oil; Google Eyed (Reuters) Reuters - Sky-high oil prices are likely to pressure Wall Street once again on Thursday, while earnings ews from tech giants Ciena (CIEN.N) and Nortel (NT.TO) and Google's (GOOG.O) awaited Nasdaq debut will also steer sentiment.
+
+================================================================================
+Rank: 4
+ID: 8755
+Similarity: 0.5269
+Text: Wall St. Seen Rising as Oil Prices Slip (Reuters) Reuters - U.S. stock futures pointed toward a higher Wall Street open on Tuesday after crude oil prices fell for a third day, easing investors' fears that costly oil would squeeze company profits and slow growth.
+
+================================================================================
+Rank: 5
+ID: 10600
+Similarity: 0.5211
+Text: Wall St. Seen Sliding After Jobless Data NEW YORK (Reuters) - U.S. stock futures pointed to a slightly lower open on Wall Street on Thursday after a report showed a larger-than-expected rise in claims for unemployment benefits, a gauge of strength in the jobs market.\n\nCELL 11: Code cell\n----------------------------------------------------------------------\nSearch time: 16.058 ms\n\nCELL 12: Code cell\n----------------------------------------------------------------------\nRank 1 | ID: 30702 | Score: 0.1994
+Rank 2 | ID: 28578 | Score: 0.1986
+Rank 3 | ID: 35541 | Score: 0.1849
+Rank 4 | ID: 100070 | Score: 0.1750
+Rank 5 | ID: 30953 | Score: 0.1743\n\nCELL 13: Code cell\n----------------------------------------------------------------------\nQueries: 100
+Average: 11.360 ms
+Median: 10.500 ms
+Min: 9.348 ms
+Max: 42.220 ms\n\nCELL 14: Code cell\n----------------------------------------------------------------------\nVectors: 119921
+Dimensions: 384
+Vector comparisons per query: 119921\n\n======================================================================\n04_FIX_HNSW.IPYNB\n======================================================================\n\nCELL 3: 2. Load the full existing embeddings and IDs\n----------------------------------------------------------------------\nDataset size: 119,921
+Dimension: 384
+Unique IDs: 119,921\n\nCELL 7: 12-13. Search and lazy deletion\n----------------------------------------------------------------------\nHNSW methods ready.\n\nCELL 9: 15. Build helper and small configuration tuning\n----------------------------------------------------------------------\n{'M': 8, 'ef_construction': 50, 'build_time_sec': 3.024804100045003, 'graph_valid': False, 'recall_at_10': 0.8959999999999998, 'avg_latency_ms': 1.2713740044273436, 'median_latency_ms': 1.2197000032756478}
+{'M': 8, 'ef_construction': 100, 'build_time_sec': 3.605742799991276, 'graph_valid': False, 'recall_at_10': 0.9079999999999998, 'avg_latency_ms': 1.2483680003788322, 'median_latency_ms': 1.2397500104270875}
+{'M': 12, 'ef_construction': 50, 'build_time_sec': 3.378649999969639, 'graph_valid': False, 'recall_at_10': 0.9880000000000001, 'avg_latency_ms': 1.6330039908643812, 'median_latency_ms': 1.5654999879188836}
+{'M': 12, 'ef_construction': 100, 'build_time_sec': 4.524141000001691, 'graph_valid': False, 'recall_at_10': 0.99, 'avg_latency_ms': 1.4922440017107874, 'median_latency_ms': 1.5146000077947974}\nM  ef_construction  build_time_sec  graph_valid  recall_at_10  \
+3  12              100        4.524141        False         0.990   
+2  12               50        3.378650        False         0.988   
+1   8              100        3.605743        False         0.908   
+0   8               50        3.024804        False         0.896   
+
+   avg_latency_ms  median_latency_ms  
+3        1.492244            1.51460  
+2        1.633004            1.56550  
+1        1.248368            1.23975  
+0        1.271374            1.21970\n\nCELL 10: 16. Select the best available configuration\n----------------------------------------------------------------------\nWARNING: No tuning candidate passed graph validation.
+Continuing with the highest measured recall for diagnosis; this does not mark the graph as valid.
+Chosen M=12, ef_construction=100\n\nCELL 11: 17. Build the final full-dataset HNSW index once\n----------------------------------------------------------------------\nBuilt 119,921 nodes in 414.956 seconds
+Graph valid: False
+Validation issues: [('unreachable nodes', 0, [722, 735, 1006, 1033, 1142, 1154, 1159, 1160, 1205, 1219]), ('unreachable nodes', 1, [171, 576, 1006, 1033, 1142, 1154, 1269, 1324, 1469, 1537]), ('unreachable nodes', 2, [1698, 1923, 2573, 2602, 5606, 6282, 7463, 8485, 8640, 11392]), ('unreachable nodes', 3, [1923, 2152, 6469, 8212, 8251, 11725, 14648, 19510, 20052, 25453]), ('unreachable nodes', 4, [1923, 4572, 6535, 7441, 13876, 28770, 41981, 55763, 57910, 60863])]\n\nCELL 12: 18. Test several queries against exact search\n----------------------------------------------------------------------\nQuery 1: recall=100.00%
+Exact IDs:  [1, 10, 3807, 8755, 10600, 38064, 35526, 72722, 72749, 89692]
+HNSW IDs:   [1, 10, 3807, 8755, 10600, 38064, 35526, 72722, 72749, 89692]
+Query 2: recall=80.00%
+Exact IDs:  [2, 101631, 101145, 117361, 84457, 59869, 78626, 22562, 118190, 78737]
+HNSW IDs:   [2, 101631, 101145, 117361, 84457, 59869, 22562, 78737, 31743, 104428]
+Query 3: recall=100.00%
+Exact IDs:  [3, 543, 11, 546, 43536, 69603, 69592, 3042, 20504, 3851]
+HNSW IDs:   [3, 543, 11, 546, 43536, 69603, 69592, 3042, 20504, 3851]\n\nCELL 13: 19. Benchmark ef_search = 10, 20, 50, 100, 200\n----------------------------------------------------------------------\nef_search=10: Recall@10=51.40%, HNSW avg=0.826 ms
+ef_search=20: Recall@10=60.70%, HNSW avg=1.099 ms
+ef_search=50: Recall@10=73.70%, HNSW avg=1.596 ms
+ef_search=100: Recall@10=80.10%, HNSW avg=2.399 ms
+ef_search=200: Recall@10=84.40%, HNSW avg=3.535 ms\ndataset_size   M  ef_construction  ef_search  build_time_sec  \
+0        119921  12              100         10      414.955866   
+1        119921  12              100         20      414.955866   
+2        119921  12              100         50      414.955866   
+3        119921  12              100        100      414.955866   
+4        119921  12              100        200      414.955866   
+
+   exact_avg_latency_ms  hnsw_avg_latency_ms  hnsw_median_latency_ms  \
+0             11.545943             0.825547                 0.77925   
+1             11.545943             1.099065                 1.00290   
+2             11.545943             1.596397                 1.46615   
+3             11.545943             2.399171                 2.30515   
+4             11.545943             3.534616                 3.53930   
+
+   recall_at_10    speedup  
+0         0.514  13.985809  
+1         0.607  10.505241  
+2         0.737   7.232501  
+3         0.801   4.812472  
+4         0.844   3.266534\n\nCELL 14: 20. Final summary table and required final results\n----------------------------------------------------------------------\nFINAL RESULTS
+=============
+Dataset size: 119,921
+Dimension: 384
+M: 12
+ef_construction: 100
+ef_search: 200
+HNSW build time: 414.956 seconds
+Exact average latency: 11.546 ms
+HNSW average latency: 3.535 ms
+Speedup: 3.27x
+Recall@10: 84.40%
+Graph validation status: False
+
+Full benchmark table:\ndataset_size   M  ef_construction  ef_search  build_time_sec  \
+0        119921  12              100         10      414.955866   
+1        119921  12              100         20      414.955866   
+2        119921  12              100         50      414.955866   
+3        119921  12              100        100      414.955866   
+4        119921  12              100        200      414.955866   
+
+   exact_avg_latency_ms  hnsw_avg_latency_ms  hnsw_median_latency_ms  \
+0             11.545943             0.825547                 0.77925   
+1             11.545943             1.099065                 1.00290   
+2             11.545943             1.596397                 1.46615   
+3             11.545943             2.399171                 2.30515   
+4             11.545943             3.534616                 3.53930   
+
+   recall_at_10    speedup  
+0         0.514  13.985809  
+1         0.607  10.505241  
+2         0.737   7.232501  
+3         0.801   4.812472  
+4         0.844   3.266534\n\nCELL 15: Final Results - Simple Explanation + Technical Metrics\n----------------------------------------------------------------------\n=================================================================
+              HNSW VECTOR SEARCH - FINAL REPORT
+=================================================================
+
+📦 DATASET
+-----------------------------------------------------------------
+Number of vectors       : 119,921
+Vector dimensions       : 384
+Embedding type          : Sentence embeddings
+Search target           : Top-10 nearest neighbours
+
+⚙️ HNSW CONFIGURATION
+-----------------------------------------------------------------
+M                       : 12
+ef_construction         : 100
+ef_search               : 200
+
+🏗️ BUILD
+-----------------------------------------------------------------
+HNSW build time         : 414.96 seconds
+                         : 6.92 minutes
+
+⚡ SEARCH PERFORMANCE
+-----------------------------------------------------------------
+Exact search latency    : 11.546 ms
+HNSW search latency     : 3.535 ms
+Speedup                 : 3.27x
+
+🎯 ACCURACY
+-----------------------------------------------------------------
+Recall@10               : 84.40%
+
+🧠 WHAT DOES THIS MEAN?
+-----------------------------------------------------------------
+HNSW searched 119,921 vectors without checking every vector for every query.
+It achieved 84.40% Recall@10, meaning that approximately 84.4% of the true top-10 nearest neighbours were found.
+HNSW took about 3.53 ms per query, compared with 11.55 ms for exact brute-force search.
+That makes HNSW approximately 3.27x faster than the exact search for this benchmark.
+
+📊 EF_SEARCH TRADE-OFF
+-----------------------------------------------------------------
+ef_search= 10  →  Recall=51.40%  |  Latency=0.826 ms  |  Speedup=13.99x
+ef_search= 20  →  Recall=60.70%  |  Latency=1.099 ms  |  Speedup=10.51x
+ef_search= 50  →  Recall=73.70%  |  Latency=1.596 ms  |  Speedup=7.23x
+ef_search=100  →  Recall=80.10%  |  Latency=2.399 ms  |  Speedup=4.81x
+ef_search=200  →  Recall=84.40%  |  Latency=3.535 ms  |  Speedup=3.27x
+
+🏆 BEST CONFIGURATION
+-----------------------------------------------------------------
+M               = 12
+ef_construction = 100
+ef_search       = 200
+Recall@10       = 84.40%
+Speedup         = 3.27x
+
+⚠️ GRAPH VALIDATION
+-----------------------------------------------------------------
+Validator status: False
+Note: The validator reports structural issues in the graph. However, the benchmark successfully completed and the graph achieved the reported Recall@10.
+
+=================================================================
+                    BENCHMARK TABLE
+=================================================================\ndataset_size   M  ef_construction  ef_search  build_time_sec  \
+0        119921  12              100         10      414.955866   
+1        119921  12              100         20      414.955866   
+2        119921  12              100         50      414.955866   
+3        119921  12              100        100      414.955866   
+4        119921  12              100        200      414.955866   
+
+   exact_avg_latency_ms  hnsw_avg_latency_ms  hnsw_median_latency_ms  \
+0             11.545943             0.825547                 0.77925   
+1             11.545943             1.099065                 1.00290   
+2             11.545943             1.596397                 1.46615   
+3             11.545943             2.399171                 2.30515   
+4             11.545943             3.534616                 3.53930   
+
+   recall_at_10    speedup  
+0         0.514  13.985809  
+1         0.607  10.505241  
+2         0.737   7.232501  
+3         0.801   4.812472  
+4         0.844   3.266534\n\n======================================================================\n05_BENCHMARK.IPYNB\n======================================================================\n\nCELL 2: Cell 1 - Imports\n----------------------------------------------------------------------\n05_benchmark.ipynb
+====================
+Benchmark environment ready.\n\nCELL 3: Cell 2 - Configuration\n----------------------------------------------------------------------\nTop-K: 10
+M: 12
+ef_construction: 100
+ef_search values: [10, 20, 50, 100, 200]
+Queries: 500\n\nCELL 4: Cell 3 - Load the existing full embeddings and IDs\n----------------------------------------------------------------------\nNumber of vectors: 119,921
+Dimension: 384
+Embedding dtype: float32
+Number of IDs: 119,921\n\nCELL 5: Cell 4 - Verify embeddings\n----------------------------------------------------------------------\nEmbedding validation\n--------------------
+Minimum norm: 0.9999999
+Maximum norm: 1.0000001
+Average norm: 1.0
+NaN values: 0
+Infinite values: 0\n\nCELL 6: Cell 5 - Exact brute-force cosine search\n----------------------------------------------------------------------\nExact search is the ground truth.\n\nCELL 7: Cell 6 - Test exact search\n----------------------------------------------------------------------\nExact Search
+============
+Rank  1 | ID:      1 | Similarity: 1.0000
+Rank  2 | ID:     10 | Similarity: 0.9671
+Rank  3 | ID:   3807 | Similarity: 0.5746
+Rank  4 | ID:   8755 | Similarity: 0.5269
+Rank  5 | ID:  10600 | Similarity: 0.5211
+Rank  6 | ID:  38064 | Similarity: 0.5159
+Rank  7 | ID:  35526 | Similarity: 0.5092
+Rank  8 | ID:  72722 | Similarity: 0.5057
+Rank  9 | ID:  72749 | Similarity: 0.5008
+Rank 10 | ID:  89692 | Similarity: 0.4994\n\nCELL 8: Cell 7 - Load the existing handwritten HNSW implementation\n----------------------------------------------------------------------\nHNSW methods ready.
+Loaded handwritten HNSWIndex from ..\notebooks\04_fix_hnsw.ipynb
+No external vector index library is used.\n\nCELL 9: Cell 8 - Build HNSW once\n----------------------------------------------------------------------\nBuilding HNSW once on the full dataset...
+This is the expensive cell.
+Inserted 10,000/119,921 in 25.3s
+Inserted 20,000/119,921 in 61.6s
+Inserted 30,000/119,921 in 94.8s
+Inserted 40,000/119,921 in 125.3s
+Inserted 50,000/119,921 in 156.4s
+Inserted 60,000/119,921 in 187.5s
+Inserted 70,000/119,921 in 219.8s
+Inserted 80,000/119,921 in 251.7s
+Inserted 90,000/119,921 in 283.9s
+Inserted 100,000/119,921 in 317.8s
+Inserted 110,000/119,921 in 351.1s
+Vectors inserted: 119,921
+Build time: 383.742 seconds\n\nCELL 10: Cell 9 - Basic HNSW information and graph validation\n----------------------------------------------------------------------\nHNSW Structure
+==============
+Entry point: 9327
+Maximum level: 16
+Graph valid: False
+Validation issues:
+ - ('unreachable nodes', 0, [722, 735, 1006, 1033, 1142, 1154, 1159, 1160, 1205, 1219])
+ - ('unreachable nodes', 1, [171, 576, 1006, 1033, 1142, 1154, 1269, 1324, 1469, 1537])
+ - ('unreachable nodes', 2, [1698, 1923, 2573, 2602, 5606, 6282, 7463, 8485, 8640, 11392])
+ - ('unreachable nodes', 3, [1923, 2152, 6469, 8212, 8251, 11725, 14648, 19510, 20052, 25453])
+ - ('unreachable nodes', 4, [1923, 4572, 6535, 7441, 13876, 28770, 41981, 55763, 57910, 60863])
+ - ('unreachable nodes', 5, [13876, 35624, 54922, 57910])
+ - ('unreachable nodes', 6, [19482])\n\nCELL 11: Cell 10 - Reproducible benchmark queries\n----------------------------------------------------------------------\nBenchmark queries: 500
+Query seed: 42\n\nCELL 12: Cell 11 - Compute exact ground truth\n----------------------------------------------------------------------\nComputing exact ground truth...
+Ground truth generated in 3.622 seconds\n\nCELL 13: Cell 12 - Normalize the existing HNSW search return format\n----------------------------------------------------------------------\nSearch adapter ready for the existing implementation.\n\nCELL 14: Cell 13 - Benchmark exact search latency\n----------------------------------------------------------------------\nExact average: 7.000 ms
+Exact median:  6.908 ms\n\nCELL 15: Cell 14 - Benchmark HNSW ef_search trade-off\n----------------------------------------------------------------------\nHNSW Benchmark
+==============
+ef_search= 10 | Recall@10=67.48% | HNSW=0.642 ms | Speedup=10.90x
+ef_search= 20 | Recall@10=73.68% | HNSW=0.750 ms | Speedup=9.34x
+ef_search= 50 | Recall@10=80.90% | HNSW=1.144 ms | Speedup=6.12x
+ef_search=100 | Recall@10=85.10% | HNSW=1.725 ms | Speedup=4.06x
+ef_search=200 | Recall@10=88.98% | HNSW=2.841 ms | Speedup=2.46x\n\nCELL 16: Cell 15 - Results table\n----------------------------------------------------------------------\n<pandas.io.formats.style.Styler at 0x1fce1617380>\n\nCELL 17: Cell 16 - Best tested configuration\n----------------------------------------------------------------------\nBEST CONFIGURATION
+==================
+M: 12
+ef_construction: 100
+ef_search: 200
+Recall@10: 88.98%
+HNSW latency: 2.841 ms
+Speedup: 2.46x\n\nCELL 18: Cell 17 - Demonstrate a real vector query\n----------------------------------------------------------------------\nExample Vector Search
+=====================
+Rank 1 | ID: 15162 | Score: 0.6009
+Rank 2 | ID: 15441 | Score: 0.5611
+Rank 3 | ID: 55592 | Score: 0.5471
+Rank 4 | ID: 17983 | Score: 0.5069
+Rank 5 | ID: 92603 | Score: 0.4935\n\nCELL 19: Cell 18 - Save benchmark results\n----------------------------------------------------------------------\nBenchmark results saved to:
+..\data\benchmark_results.csv\n\nCELL 20: Cell 19 - Final results\n----------------------------------------------------------------------\n============================================================
+FINAL VECTOR DATABASE BENCHMARK
+============================================================
+Dataset size       : 119,921 vectors
+Vector dimension    : 384
+M                  : 12
+ef_construction    : 100
+ef_search          : 200
+Build time         : 383.742 sec
+Exact latency      : 7.000 ms
+HNSW latency       : 2.841 ms
+Speedup            : 2.46x
+Recall@10          : 88.98%
+Graph validation   : False
+============================================================\n\nCELL 21: Cell 20 - Plain-English interpretation\n----------------------------------------------------------------------\nPROJECT RESULT IN SIMPLE WORDS
+===============================
+We indexed 119,921 document embeddings.
+Each embedding has 384 dimensions.
+Exact search checks every vector and provides the ground-truth top-10.
+HNSW searches a graph and avoids checking every vector for each query.
+Recall@10 was 89.0%, meaning HNSW retrieved about 8.90 of the 10 exact neighbors on average.
+HNSW was approximately 2.46x faster for this benchmark.
+Higher ef_search generally increases recall and latency together.\n\n======================================================================\nCURRENT CELL 21 STATUS\n======================================================================\nbenchmark.txt contains saved human-readable outputs from active notebooks 01-05.\nexplanation.txt contains a cell-by-cell explanation and source listing for active notebooks 01-05.\n

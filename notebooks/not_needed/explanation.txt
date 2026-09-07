@@ -1,0 +1,1184 @@
+VECTOR DATABASE PROJECT EXPLANATION\n====================================\nGenerated: 2026-09-08T01:21:49\n\nThis report explains every cell in the active notebooks 01 through 05.\nThe notebooks under notebooks/not_needed are intentionally excluded.\n\n\n======================================================================\n01_DATA_EXPLORATION.IPYNB\n======================================================================\n\nCELL 1: AG News preprocessing\n----------------------------------------------------------------------\nThis markdown cell documents the project workflow or the purpose of the nearby code.\n\nCell source:\n### AG News preprocessing
+### Load the raw parquet files, inspect schema, merge records, and clean text while preserving meaning.\n\nCELL 2: Code cell\n----------------------------------------------------------------------\nIt imports import json, from pathlib import Path, import pandas as pd.\n\nCell source:\nimport json
+from pathlib import Path
+
+import pandas as pd
+
+raw_dir = Path('..') / 'data' / 'raw'
+processed_dir = Path('..') / 'data' / 'processed'
+processed_dir.mkdir(parents=True, exist_ok=True)
+
+# Read every parquet file and combine them into a single DataFrame.
+parquet_files = sorted(raw_dir.glob('*.parquet'))
+parquet_files\n\nCELL 3: Code cell\n----------------------------------------------------------------------\nImportant operations include: df_list = [pd.read_parquet(f) for f in parquet_files].\n\nCell source:\ndf_list = [pd.read_parquet(f) for f in parquet_files]
+df = pd.concat(df_list, ignore_index=True)
+
+print(f'Parquet files: {len(parquet_files)}')
+print(f'Combined rows: {len(df)}')
+print('Columns:', list(df.columns))
+print(df.head(3).to_dict(orient='records'))\n\nCELL 4: Clean only whitespace and escaped characters without changing wording.\n----------------------------------------------------------------------\nIt defines def normalize_text.\n\nCell source:\n# Clean only whitespace and escaped characters without changing wording.
+def normalize_text(value):
+    if pd.isna(value):
+        return None
+    text = str(value)
+    # Replace escaped line breaks/tabs with spaces, then collapse repeated whitespace.
+    text = text.replace('\\n', ' ').replace('\\r', ' ').replace('\\t', ' ')
+    text = ' '.join(text.split())
+    return text if text else None
+
+# Keep category label as metadata.
+df = df.rename(columns={'label': 'category'})
+
+original_rows = len(df)
+# Remove empty/null text and exact duplicates on the cleaned text, keeping first occurrence.
+cleaned = df[['text', 'category']].copy()
+cleaned['text'] = cleaned['text'].map(normalize_text)
+cleaned = cleaned.dropna(subset=['text']).drop_duplicates(subset=['text'], keep='first').reset_index(drop=True)
+
+removed_empty = original_rows - len(cleaned)
+print(f'Original rows: {original_rows}')
+print(f'Rows after empty/drop duplicates: {len(cleaned)}')
+print(f'Rows removed: {removed_empty}')
+print(cleaned.head(3).to_dict(orient='records'))\n\nCELL 5: Generate a unique integer ID for each document.\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Generate a unique integer ID for each document.
+cleaned['id'] = list(range(1, len(cleaned) + 1))
+cleaned = cleaned[['id', 'text', 'category']]
+
+# Save the final cleaned dataset as JSON Lines.
+records = [
+    {
+        'id': int(row['id']),
+        'text': row['text'],
+        'metadata': {'category': row['category']}
+    }
+    for _, row in cleaned.iterrows()
+]
+
+output_path = processed_dir / 'documents.jsonl'
+with output_path.open('w', encoding='utf-8') as f:
+    for item in records:
+        f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+print(f'Wrote {len(records)} records to {output_path}')\n\nCELL 6: Create a reproducible 1,000-record dev sample.\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Create a reproducible 1,000-record dev sample.
+# Keep deterministic ordering by using the cleaned dataset order.
+random_seed = 42
+sample_size = 1000
+if len(cleaned) > sample_size:
+    sample_df = cleaned.sample(n=sample_size, random_state=random_seed).reset_index(drop=True)
+else:
+    sample_df = cleaned.reset_index(drop=True)
+
+sample_records = [
+    {
+        'id': int(row['id']),
+        'text': row['text'],
+        'metadata': {'category': row['category']}
+    }
+    for _, row in sample_df.iterrows()
+]
+
+sample_path = processed_dir / 'documents_dev.jsonl'
+with sample_path.open('w', encoding='utf-8') as f:
+    for item in sample_records:
+        f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+print(f'Wrote {len(sample_records)} dev records to {sample_path}')\n\nCELL 7: Print summary metrics and a few examples for validation.\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Print summary metrics and a few examples for validation.
+final_df = cleaned.copy()
+final_df['category'] = final_df['category'].astype(str)
+
+category_distribution = final_df['category'].value_counts().sort_index()
+print('Final record count:', len(final_df))
+print('Duplicate count:', original_rows - len(final_df))
+print('Category distribution:')
+print(category_distribution)
+print('\nExamples:')
+for _, row in final_df.head(3).iterrows():
+    print({'id': int(row['id']), 'category': row['category'], 'text': row['text'][:180]})\n\n======================================================================\n02_EMBEDDING_COLLAB.IPYNB\n======================================================================\n\nCELL 1: Code cell\n----------------------------------------------------------------------\nIt imports from google.colab import drive.\n\nCell source:\nfrom google.colab import drive
+
+drive.mount('/content/drive')\n\nCELL 2: Code cell\n----------------------------------------------------------------------\nIt imports from pathlib import Path.\n\nCell source:\nfrom pathlib import Path
+
+DATA_DIR = Path("/content/drive/MyDrive/data")
+
+print("Data folder exists:", DATA_DIR.exists())
+print("Files/folders:")
+
+for item in DATA_DIR.iterdir():
+    print(item)\n\nCELL 3: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nPROCESSED_DIR = DATA_DIR / "processed"
+
+FULL_FILE = PROCESSED_DIR / "documents.jsonl"
+DEV_FILE = PROCESSED_DIR / "documents_dev.jsonl"
+
+print("Full dataset exists:", FULL_FILE.exists())
+print("Dev dataset exists:", DEV_FILE.exists())\n\nCELL 4: Code cell\n----------------------------------------------------------------------\nIt imports import json, import numpy as np, from sentence_transformers import SentenceTransformer.\n\nCell source:\nimport json
+import numpy as np
+from sentence_transformers import SentenceTransformer\n\nCELL 5: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\ndocuments = []
+
+with open(FULL_FILE, "r", encoding="utf-8") as f:
+    for line in f:
+        documents.append(json.loads(line))
+
+ids = [doc["id"] for doc in documents]
+texts = [doc["text"] for doc in documents]
+
+print("Total documents:", len(documents))
+print("Total texts:", len(texts))
+print("First document:")
+print(documents[0])\n\nCELL 6: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nmodel = SentenceTransformer("all-MiniLM-L6-v2")
+
+print("Model loaded")
+print("Embedding dimension:", model.get_embedding_dimension())\n\nCELL 7: Code cell\n----------------------------------------------------------------------\nIt imports import torch.\n\nCell source:\nimport torch
+
+print("GPU available:", torch.cuda.is_available())
+
+if torch.cuda.is_available():
+    print("GPU:", torch.cuda.get_device_name(0))
+else:
+    print("Running on CPU")\n\nCELL 8: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\ndevice = "cuda" if torch.cuda.is_available() else "cpu"
+
+model = model.to(device)
+
+print("Using device:", device)\n\nCELL 9: Code cell\n----------------------------------------------------------------------\nImportant operations include: embeddings = model.encode(.\n\nCell source:\nembeddings = model.encode(
+    texts,
+    batch_size=128,
+    show_progress_bar=True,
+    convert_to_numpy=True,
+    normalize_embeddings=True
+)
+
+print("Embedding shape:", embeddings.shape)
+print("Data type:", embeddings.dtype)\n\nCELL 10: Code cell\n----------------------------------------------------------------------\nIt imports from pathlib import Path, import json, import numpy as np.\n\nCell source:\nfrom pathlib import Path
+import json
+import numpy as np
+
+EMBEDDINGS_DIR = DATA_DIR / "embeddings"
+EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
+
+np.save(EMBEDDINGS_DIR / "embeddings.npy", embeddings)
+np.save(EMBEDDINGS_DIR / "ids.npy", np.array(ids))
+
+metadata = {
+    "model": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "normalized": True,
+    "document_count": len(documents)
+}
+
+with open(EMBEDDINGS_DIR / "metadata.json", "w", encoding="utf-8") as f:
+    json.dump(metadata, f, indent=4)
+
+print("Saved successfully!")
+print("Location:", EMBEDDINGS_DIR)\n\nCELL 11: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nprint("Embeddings:", (EMBEDDINGS_DIR / "embeddings.npy").exists())
+print("IDs:", (EMBEDDINGS_DIR / "ids.npy").exists())
+print("Metadata:", (EMBEDDINGS_DIR / "metadata.json").exists())\n\nCELL 12: Code cell\n----------------------------------------------------------------------\nThis cell is empty.\n\nCell source:\n\n\n======================================================================\n03_EXACT_SEARCH.IPYNB\n======================================================================\n\nCELL 1: Code cell\n----------------------------------------------------------------------\nIt imports import json, import time, import numpy as np, from pathlib import Path.\n\nCell source:\nimport json
+import time
+import numpy as np
+from pathlib import Path\n\nCELL 2: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nPROJECT_DIR = Path("..")
+
+DATA_DIR = PROJECT_DIR / "data"
+PROCESSED_DIR = DATA_DIR / "processed"
+EMBEDDINGS_DIR = DATA_DIR / "embeddings"
+
+DOCUMENTS_FILE = PROCESSED_DIR / "documents.jsonl"
+EMBEDDINGS_FILE = EMBEDDINGS_DIR / "embeddings.npy"
+IDS_FILE = EMBEDDINGS_DIR / "ids.npy"
+
+print("Documents:", DOCUMENTS_FILE)
+print("Embeddings:", EMBEDDINGS_FILE)
+print("IDs:", IDS_FILE)\n\nCELL 3: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\ndocuments = []
+
+with open(DOCUMENTS_FILE, "r", encoding="utf-8") as f:
+    for line in f:
+        if line.strip():
+            documents.append(json.loads(line))
+
+print("Documents loaded:", len(documents))
+print(documents[0])\n\nCELL 4: Code cell\n----------------------------------------------------------------------\nImportant operations include: embeddings = np.load(EMBEDDINGS_FILE); ids = np.load(IDS_FILE).\n\nCell source:\nembeddings = np.load(EMBEDDINGS_FILE)
+ids = np.load(IDS_FILE)
+
+print("Embeddings shape:", embeddings.shape)
+print("IDs shape:", ids.shape)
+print("Embedding dtype:", embeddings.dtype)\n\nCELL 5: Code cell\n----------------------------------------------------------------------\nIt defines class ExactIndex, def __init__, def search. Important operations include: def search(self, query_vector, k=10):.\n\nCell source:\nclass ExactIndex:
+    def __init__(self, vectors, ids):
+        self.vectors = vectors
+        self.ids = ids
+
+        print(f"Index created with {len(vectors)} vectors")
+        print(f"Dimension: {vectors.shape[1]}")
+
+    def search(self, query_vector, k=10):
+        scores = self.vectors @ query_vector
+        top_indices = np.argsort(scores)[::-1][:k]
+
+        results = []
+
+        for index in top_indices:
+            results.append({
+                "id": int(self.ids[index]),
+                "score": float(scores[index]),
+                "index": int(index),
+            })
+
+        return results\n\nCELL 6: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nexact_index = ExactIndex(
+    embeddings,
+    ids
+)\n\nCELL 7: Code cell\n----------------------------------------------------------------------\nIt defines def cosine_similarity.\n\nCell source:\ndef cosine_similarity(query, vectors):
+    return vectors @ query\n\nCELL 8: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nexact_index = ExactIndex(
+    embeddings,
+    ids
+)\n\nCELL 9: Code cell\n----------------------------------------------------------------------\nImportant operations include: results = exact_index.search(.\n\nCell source:\nquery_index = 0
+
+query_vector = embeddings[query_index]
+
+results = exact_index.search(
+    query_vector,
+    k=5
+)
+
+for rank, result in enumerate(results, start=1):
+    print(
+        f"Rank {rank} | "
+        f"ID: {result['id']} | "
+        f"Score: {result['score']:.4f}"
+    )\n\nCELL 10: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nfor rank, result in enumerate(results, start=1):
+    index = result["index"]
+
+    print(f"\n{'=' * 80}")
+    print(f"Rank: {rank}")
+    print(f"ID: {result['id']}")
+    print(f"Similarity: {result['score']:.4f}")
+    print(f"Text: {documents[index]['text'][:500]}")\n\nCELL 11: Code cell\n----------------------------------------------------------------------\nImportant operations include: results = exact_index.search(.\n\nCell source:\nstart = time.perf_counter()
+
+results = exact_index.search(
+    query_vector,
+    k=10
+)
+
+end = time.perf_counter()
+
+search_time_ms = (end - start) * 1000
+
+print(f"Search time: {search_time_ms:.3f} ms")\n\nCELL 12: Code cell\n----------------------------------------------------------------------\nImportant operations include: results = exact_index.search(.\n\nCell source:\nrng = np.random.default_rng(42)
+
+random_query = rng.normal(
+    size=embeddings.shape[1]
+).astype(np.float32)
+
+random_query /= np.linalg.norm(random_query)
+
+results = exact_index.search(
+    random_query,
+    k=5
+)
+
+for rank, result in enumerate(results, start=1):
+    print(
+        f"Rank {rank} | "
+        f"ID: {result['id']} | "
+        f"Score: {result['score']:.4f}"
+    )\n\nCELL 13: Code cell\n----------------------------------------------------------------------\nImportant operations include: exact_index.search(query, k=10).\n\nCell source:\nquery_indices = rng.choice(
+    len(embeddings),
+    size=100,
+    replace=False
+)
+
+query_vectors = embeddings[query_indices]
+
+times = []
+
+for query in query_vectors:
+    start = time.perf_counter()
+
+    exact_index.search(query, k=10)
+
+    end = time.perf_counter()
+
+    times.append((end - start) * 1000)
+
+times = np.array(times)
+
+print(f"Queries: {len(times)}")
+print(f"Average: {times.mean():.3f} ms")
+print(f"Median: {np.median(times):.3f} ms")
+print(f"Min: {times.min():.3f} ms")
+print(f"Max: {times.max():.3f} ms")\n\nCELL 14: Code cell\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\nnum_vectors = embeddings.shape[0]
+dimension = embeddings.shape[1]
+comparisons_per_query = num_vectors
+
+print("Vectors:", num_vectors)
+print("Dimensions:", dimension)
+print("Vector comparisons per query:", comparisons_per_query)\n\nCELL 15: Code cell\n----------------------------------------------------------------------\nThis cell is empty.\n\nCell source:\n\n\n======================================================================\n04_FIX_HNSW.IPYNB\n======================================================================\n\nCELL 1: Clean Handwritten HNSW\n----------------------------------------------------------------------\nThis markdown cell documents the project workflow or the purpose of the nearby code.\n\nCell source:\n# Clean Handwritten HNSW
+
+A correctness-first HNSW implementation using Python and NumPy only. Exact brute-force search is the ground truth. The notebook tunes parameters on a small subset, builds the full index once, validates graph invariants, and evaluates Recall@10.\n\nCELL 2: 1. Imports and configuration\n----------------------------------------------------------------------\nIt imports import heapq, import time, from dataclasses import dataclass, field, from pathlib import Path.\n\nCell source:\n# 1. Imports and configuration
+import heapq
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+PROJECT_DIR = Path('..')
+EMBEDDINGS_FILE = PROJECT_DIR / 'data' / 'embeddings' / 'embeddings.npy'
+IDS_FILE = PROJECT_DIR / 'data' / 'embeddings' / 'ids.npy'
+EXPECTED_SIZE = 119_921
+DIMENSION = 384
+K = 10
+QUERY_COUNT = 100
+TUNING_SIZE = 2_000
+TUNING_QUERIES = 50
+M_CANDIDATES = [8, 12]
+EF_CONSTRUCTION_CANDIDATES = [50, 100]
+EF_SEARCH_VALUES = [10, 20, 50, 100, 200]
+RANDOM_SEED = 42\n\nCELL 3: 2. Load the full existing embeddings and IDs\n----------------------------------------------------------------------\nImportant operations include: embeddings = np.load(EMBEDDINGS_FILE, mmap_mode='r'); ids = np.load(IDS_FILE, mmap_mode='r').astype(np.int64).\n\nCell source:\n# 2. Load the full existing embeddings and IDs
+embeddings = np.load(EMBEDDINGS_FILE, mmap_mode='r')
+ids = np.load(IDS_FILE, mmap_mode='r').astype(np.int64)
+if embeddings.ndim != 2 or embeddings.shape[1] != DIMENSION:
+    raise ValueError(f'Expected shape (n, {DIMENSION}), got {embeddings.shape}')
+if len(embeddings) != len(ids):
+    raise ValueError('Embeddings and IDs are not aligned')
+print(f'Dataset size: {len(embeddings):,}')
+print(f'Dimension: {embeddings.shape[1]}')
+print(f'Unique IDs: {len(np.unique(ids)):,}')\n\nCELL 4: 3. Cosine similarity utilities\n----------------------------------------------------------------------\nIt defines def cosine_similarity, def cosine_scores, def exact_search, def recall_at_k. Important operations include: def exact_search(query, vectors, vector_ids, k=K):.\n\nCell source:\n# 3. Cosine similarity utilities
+def cosine_similarity(a, b):
+    return float(np.dot(a, b))
+
+def cosine_scores(query, vectors):
+    return np.asarray(vectors @ query, dtype=np.float32)
+
+def exact_search(query, vectors, vector_ids, k=K):
+    scores = cosine_scores(query, vectors)
+    top = np.argsort(scores)[::-1][:k]
+    return [{'id': int(vector_ids[i]), 'index': int(i), 'score': float(scores[i])} for i in top]
+
+def recall_at_k(exact_results, approximate_results, k=K):
+    expected = {row['id'] for row in exact_results[:k]}
+    actual = {row['id'] for row in approximate_results[:k]}
+    return len(expected & actual) / len(expected) if expected else 0.0\n\nCELL 5: 4. HNSWNode structure\n----------------------------------------------------------------------\nIt defines class HNSWNode.\n\nCell source:\n# 4. HNSWNode structure
+@dataclass
+class HNSWNode:
+    index: int
+    doc_id: int
+    level: int
+    neighbors: dict = field(default_factory=dict)
+    deleted: bool = False\n\nCELL 6: 5-11. HNSWIndex: levels, layer search, connections, pruning, and insertion\n----------------------------------------------------------------------\nIt defines class HNSWIndex, def __init__, def random_level, def _active, def _score, def _layer_neighbors, def search_layer, def _select_neighbors. Important operations include: def insert(self, vector, doc_id):.\n\nCell source:\n# 5-11. HNSWIndex: levels, layer search, connections, pruning, and insertion
+class HNSWIndex:
+    def __init__(self, M=8, ef_construction=50, ef_search=50, seed=RANDOM_SEED):
+        self.M = int(M)
+        self.ef_construction = int(ef_construction)
+        self.ef_search = int(ef_search)
+        self.rng = np.random.default_rng(seed)
+        self.vectors = []
+        self.nodes = {}
+        self.id_to_index = {}
+        self.entry_point = None
+        self.max_level = -1
+
+    def random_level(self):
+        level = 0
+        while self.rng.random() < 0.5:
+            level += 1
+        return level
+
+    def _active(self, index):
+        return index in self.nodes and not self.nodes[index].deleted
+
+    def _score(self, query, index):
+        return cosine_similarity(query, self.vectors[index])
+
+    def _layer_neighbors(self, index, layer):
+        return self.nodes[index].neighbors.setdefault(layer, set())
+
+    def search_layer(self, query, entry_points, layer, ef):
+        if ef <= 0 or layer < 0:
+            return []
+        valid_entries = [n for n in entry_points if self._active(n) and self.nodes[n].level >= layer]
+        if not valid_entries:
+            return []
+
+        visited = set(valid_entries)
+        candidates = [(-self._score(query, n), n) for n in valid_entries]
+        results = [(self._score(query, n), n) for n in valid_entries]
+        heapq.heapify(candidates)
+        heapq.heapify(results)
+
+        while candidates:
+            neg_score, current = heapq.heappop(candidates)
+            current_score = -neg_score
+            worst_score = results[0][0] if len(results) >= ef else float('-inf')
+            if len(results) >= ef and current_score < worst_score:
+                break
+
+            for neighbor in self._layer_neighbors(current, layer):
+                if neighbor in visited or not self._active(neighbor):
+                    continue
+                visited.add(neighbor)
+                score = self._score(query, neighbor)
+                current_worst = results[0][0] if len(results) >= ef else float('-inf')
+                if len(results) < ef or score > current_worst:
+                    heapq.heappush(candidates, (-score, neighbor))
+                    heapq.heappush(results, (score, neighbor))
+                    if len(results) > ef:
+                        heapq.heappop(results)
+
+        return sorted(results, key=lambda pair: pair[0], reverse=True)
+
+    def _select_neighbors(self, candidates, limit):
+        selected = []
+        seen = set()
+        for score, index in sorted(candidates, key=lambda pair: pair[0], reverse=True):
+            if index not in seen and self._active(index):
+                selected.append(index)
+                seen.add(index)
+            if len(selected) == limit:
+                break
+        return selected
+
+    def _remove_edge(self, a, b, layer):
+        self._layer_neighbors(a, layer).discard(b)
+        self._layer_neighbors(b, layer).discard(a)
+
+    def _prune_node(self, node_index, layer):
+        neighbors = self._layer_neighbors(node_index, layer)
+        if len(neighbors) <= self.M:
+            return
+        ranked = sorted(neighbors, key=lambda n: self._score(self.vectors[node_index], n), reverse=True)
+        keep = set(ranked[:self.M])
+        for neighbor in list(neighbors - keep):
+            self._remove_edge(node_index, neighbor, layer)
+
+    def connect_bidirectional(self, a, b, layer):
+        if a == b or not self._active(a) or not self._active(b):
+            return
+        if self.nodes[a].level < layer or self.nodes[b].level < layer:
+            return
+        self._layer_neighbors(a, layer).add(b)
+        self._layer_neighbors(b, layer).add(a)
+        self._prune_node(a, layer)
+        self._prune_node(b, layer)
+
+    def insert(self, vector, doc_id):
+        vector = np.asarray(vector, dtype=np.float32)
+        node_index = len(self.vectors)
+        level = self.random_level()
+        self.vectors.append(vector)
+        self.nodes[node_index] = HNSWNode(node_index, int(doc_id), level)
+        self.id_to_index[int(doc_id)] = node_index
+
+        if self.entry_point is None:
+            self.entry_point = node_index
+            self.max_level = level
+            return node_index
+
+        current = self.entry_point
+        for layer in range(self.max_level, level, -1):
+            candidates = self.search_layer(vector, [current], layer, 1)
+            if candidates:
+                current = candidates[0][1]
+
+        for layer in range(min(level, self.max_level), -1, -1):
+            candidates = self.search_layer(vector, [current], layer, self.ef_construction)
+            selected = self._select_neighbors(candidates, self.M)
+            for neighbor in selected:
+                self.connect_bidirectional(node_index, neighbor, layer)
+            if candidates:
+                current = candidates[0][1]
+
+        if level > self.max_level:
+            self.entry_point = node_index
+            self.max_level = level
+        return node_index\n\nCELL 7: 12-13. Search and lazy deletion\n----------------------------------------------------------------------\nIt defines def hnsw_search, def hnsw_delete. Important operations include: def hnsw_search(self, query, top_k=10):.\n\nCell source:\n# 12-13. Search and lazy deletion
+def hnsw_search(self, query, top_k=10):
+    if self.entry_point is None:
+        return []
+    current = self.entry_point
+    for layer in range(self.max_level, 0, -1):
+        candidates = self.search_layer(query, [current], layer, 1)
+        if candidates:
+            current = candidates[0][1]
+    results = self.search_layer(query, [current], 0, max(self.ef_search, top_k))
+    return [
+        {'id': int(self.nodes[index].doc_id), 'index': int(index), 'score': float(score)}
+        for score, index in results[:top_k]
+    ]
+
+def hnsw_delete(self, doc_id):
+    index = self.id_to_index.get(int(doc_id))
+    if index is None or not self._active(index):
+        return False
+    self.nodes[index].deleted = True
+    for layer in list(self.nodes[index].neighbors):
+        for neighbor in list(self.nodes[index].neighbors[layer]):
+            self._remove_edge(index, neighbor, layer)
+    if self.entry_point == index:
+        active = [n for n in self.nodes if self._active(n)]
+        self.entry_point = max(active, key=lambda n: self.nodes[n].level) if active else None
+        self.max_level = self.nodes[self.entry_point].level if self.entry_point is not None else -1
+    return True
+
+HNSWIndex.search = hnsw_search
+HNSWIndex.delete = hnsw_delete
+print('HNSW methods ready.')\n\nCELL 8: 14. Graph validation and diagnostics\n----------------------------------------------------------------------\nIt defines def validate_graph.\n\nCell source:\n# 14. Graph validation and diagnostics
+def validate_graph(self):
+    active = {n for n, node in self.nodes.items() if not node.deleted}
+    issues = []
+    if active and (self.entry_point not in active or self.entry_point not in self.nodes):
+        issues.append('invalid entry point')
+    if self.max_level != (self.nodes[self.entry_point].level if self.entry_point in self.nodes else -1):
+        issues.append('max_level does not match entry point level')
+    for node_index, node in self.nodes.items():
+        for layer, neighbors in node.neighbors.items():
+            if layer > node.level:
+                issues.append(('node above level', node_index, layer))
+            if len(neighbors) > self.M:
+                issues.append(('degree above M', node_index, layer, len(neighbors)))
+            if node_index in neighbors:
+                issues.append(('self loop', node_index, layer))
+            if len(neighbors) != len(set(neighbors)):
+                issues.append(('duplicate neighbors', node_index, layer))
+            for neighbor in neighbors:
+                if neighbor not in self.nodes or neighbor not in active:
+                    issues.append(('invalid neighbor', node_index, layer, neighbor))
+                elif node_index not in self.nodes[neighbor].neighbors.get(layer, set()):
+                    issues.append(('missing reverse edge', node_index, layer, neighbor))
+    reachable_by_layer = {}
+    for layer in range(self.max_level + 1):
+        reached = set()
+        stack = [self.entry_point] if self.entry_point in active and self.nodes[self.entry_point].level >= layer else []
+        while stack:
+            current = stack.pop()
+            if current in reached or current not in active or self.nodes[current].level < layer:
+                continue
+            reached.add(current)
+            stack.extend(self.nodes[current].neighbors.get(layer, set()))
+        layer_nodes = {n for n in active if self.nodes[n].level >= layer}
+        reachable_by_layer[layer] = (len(reached), len(layer_nodes - reached))
+        if layer_nodes - reached:
+            issues.append(('unreachable nodes', layer, sorted(layer_nodes - reached)[:10]))
+    return {'valid': not issues, 'nodes': len(self.nodes), 'active_nodes': len(active), 'layers': self.max_level + 1, 'reachable_by_layer': reachable_by_layer, 'issues': issues}
+
+HNSWIndex.validate_graph = validate_graph\n\nCELL 9: 15. Build helper and small configuration tuning\n----------------------------------------------------------------------\nIt defines def build_index, def benchmark_index. Important operations include: index.insert(vector, int(doc_id)); exact = exact_search(query, vectors, vector_ids, k); approximate = index.search(query, k).\n\nCell source:\n# 15. Build helper and small configuration tuning
+def build_index(vectors, vector_ids, M, ef_construction, ef_search=50):
+    index = HNSWIndex(M=M, ef_construction=ef_construction, ef_search=ef_search)
+    start = time.perf_counter()
+    for vector, doc_id in zip(vectors, vector_ids):
+        index.insert(vector, int(doc_id))
+    return index, time.perf_counter() - start
+
+def benchmark_index(index, vectors, vector_ids, queries, ef_search, k=K):
+    index.ef_search = ef_search
+    recalls = []
+    latencies = []
+    for query in queries:
+        exact = exact_search(query, vectors, vector_ids, k)
+        start = time.perf_counter()
+        approximate = index.search(query, k)
+        latencies.append((time.perf_counter() - start) * 1000)
+        recalls.append(recall_at_k(exact, approximate, k))
+    return {'recall_at_10': float(np.mean(recalls)), 'avg_latency_ms': float(np.mean(latencies)), 'median_latency_ms': float(np.median(latencies))}
+
+tune_vectors = np.asarray(embeddings[:TUNING_SIZE])
+tune_ids = np.asarray(ids[:TUNING_SIZE])
+tune_queries = tune_vectors[:TUNING_QUERIES]
+tuning_rows = []
+for candidate_m in M_CANDIDATES:
+    for candidate_efc in EF_CONSTRUCTION_CANDIDATES:
+        candidate_index, candidate_build = build_index(tune_vectors, tune_ids, candidate_m, candidate_efc, ef_search=100)
+        validation = candidate_index.validate_graph()
+        metrics = benchmark_index(candidate_index, tune_vectors, tune_ids, tune_queries, ef_search=100)
+        tuning_rows.append({'M': candidate_m, 'ef_construction': candidate_efc, 'build_time_sec': candidate_build, 'graph_valid': validation['valid'], **metrics})
+        print(tuning_rows[-1])
+
+tuning_df = pd.DataFrame(tuning_rows).sort_values(['graph_valid', 'recall_at_10', 'avg_latency_ms'], ascending=[False, False, True])
+tuning_df\n\nCELL 10: 16. Select the best available configuration\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# 16. Select the best available configuration
+valid_tuning = tuning_df[tuning_df['graph_valid']]
+if valid_tuning.empty:
+    print('WARNING: No tuning candidate passed graph validation.')
+    print('Continuing with the highest measured recall for diagnosis; this does not mark the graph as valid.')
+    chosen = tuning_df.sort_values(['recall_at_10', 'avg_latency_ms'], ascending=[False, True]).iloc[0]
+else:
+    chosen = valid_tuning.sort_values(['recall_at_10', 'avg_latency_ms'], ascending=[False, True]).iloc[0]
+CHOSEN_M = int(chosen['M'])
+CHOSEN_EF_CONSTRUCTION = int(chosen['ef_construction'])
+print(f'Chosen M={CHOSEN_M}, ef_construction={CHOSEN_EF_CONSTRUCTION}')\n\nCELL 11: 17. Build the final full-dataset HNSW index once\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# 17. Build the final full-dataset HNSW index once
+full_vectors = np.asarray(embeddings)
+full_ids = np.asarray(ids)
+hnsw, hnsw_build_time = build_index(full_vectors, full_ids, CHOSEN_M, CHOSEN_EF_CONSTRUCTION, ef_search=100)
+final_validation = hnsw.validate_graph()
+print(f'Built {len(hnsw.nodes):,} nodes in {hnsw_build_time:.3f} seconds')
+print(f'Graph valid: {final_validation["valid"]}')
+print(f'Validation issues: {final_validation["issues"][:5]}')\n\nCELL 12: 18. Test several queries against exact search\n----------------------------------------------------------------------\nImportant operations include: exact = exact_search(query, full_vectors, full_ids, K); approximate = hnsw.search(query, K).\n\nCell source:\n# 18. Test several queries against exact search
+evaluation_queries = full_vectors[:QUERY_COUNT]
+for query_number, query in enumerate(evaluation_queries[:3], 1):
+    exact = exact_search(query, full_vectors, full_ids, K)
+    approximate = hnsw.search(query, K)
+    print(f'Query {query_number}: recall={recall_at_k(exact, approximate):.2%}')
+    print('Exact IDs: ', [r['id'] for r in exact])
+    print('HNSW IDs:  ', [r['id'] for r in approximate])\n\nCELL 13: 19. Benchmark ef_search = 10, 20, 50, 100, 200\n----------------------------------------------------------------------\nImportant operations include: exact_search(query, full_vectors, full_ids, K).\n\nCell source:\n# 19. Benchmark ef_search = 10, 20, 50, 100, 200
+exact_latency_values = []
+for query in evaluation_queries:
+    start = time.perf_counter()
+    exact_search(query, full_vectors, full_ids, K)
+    exact_latency_values.append((time.perf_counter() - start) * 1000)
+exact_avg = float(np.mean(exact_latency_values))
+
+benchmark_rows = []
+for ef_search in EF_SEARCH_VALUES:
+    metrics = benchmark_index(hnsw, full_vectors, full_ids, evaluation_queries, ef_search, K)
+    benchmark_rows.append({
+        'dataset_size': len(full_vectors), 'M': CHOSEN_M, 'ef_construction': CHOSEN_EF_CONSTRUCTION,
+        'ef_search': ef_search, 'build_time_sec': hnsw_build_time,
+        'exact_avg_latency_ms': exact_avg, 'hnsw_avg_latency_ms': metrics['avg_latency_ms'],
+        'hnsw_median_latency_ms': metrics['median_latency_ms'], 'recall_at_10': metrics['recall_at_10'],
+        'speedup': exact_avg / metrics['avg_latency_ms'] if metrics['avg_latency_ms'] else np.nan,
+    })
+    print(f'ef_search={ef_search}: Recall@10={metrics["recall_at_10"]:.2%}, HNSW avg={metrics["avg_latency_ms"]:.3f} ms')
+
+benchmark_df = pd.DataFrame(benchmark_rows)
+benchmark_df\n\nCELL 14: 20. Final summary table and required final results\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# 20. Final summary table and required final results
+final_row = benchmark_df.loc[benchmark_df['recall_at_10'].idxmax()]
+print('\nFINAL RESULTS')
+print('=============')
+print(f'Dataset size: {int(final_row["dataset_size"]):,}')
+print(f'Dimension: {DIMENSION}')
+print(f'M: {int(final_row["M"])}')
+print(f'ef_construction: {int(final_row["ef_construction"])}')
+print(f'ef_search: {int(final_row["ef_search"])}')
+print(f'HNSW build time: {final_row["build_time_sec"]:.3f} seconds')
+print(f'Exact average latency: {final_row["exact_avg_latency_ms"]:.3f} ms')
+print(f'HNSW average latency: {final_row["hnsw_avg_latency_ms"]:.3f} ms')
+print(f'Speedup: {final_row["speedup"]:.2f}x')
+print(f'Recall@10: {final_row["recall_at_10"]:.2%}')
+print(f'Graph validation status: {final_validation["valid"]}')
+
+print('\nFull benchmark table:')
+display(benchmark_df)\n\nCELL 15: Final Results - Simple Explanation + Technical Metrics\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Final Results - Simple Explanation + Technical Metrics
+
+final_row = benchmark_df.loc[benchmark_df['recall_at_10'].idxmax()]
+
+dataset_size = int(final_row["dataset_size"])
+M = int(final_row["M"])
+ef_construction = int(final_row["ef_construction"])
+ef_search = int(final_row["ef_search"])
+build_time = final_row["build_time_sec"]
+exact_latency = final_row["exact_avg_latency_ms"]
+hnsw_latency = final_row["hnsw_avg_latency_ms"]
+speedup = final_row["speedup"]
+recall = final_row["recall_at_10"]
+
+print("=" * 65)
+print("              HNSW VECTOR SEARCH - FINAL REPORT")
+print("=" * 65)
+
+print("\n📦 DATASET")
+print("-" * 65)
+print(f"Number of vectors       : {dataset_size:,}")
+print(f"Vector dimensions       : {DIMENSION}")
+print("Embedding type          : Sentence embeddings")
+print("Search target           : Top-10 nearest neighbours")
+
+print("\n⚙️ HNSW CONFIGURATION")
+print("-" * 65)
+print(f"M                       : {M}")
+print(f"ef_construction         : {ef_construction}")
+print(f"ef_search               : {ef_search}")
+
+print("\n🏗️ BUILD")
+print("-" * 65)
+print(f"HNSW build time         : {build_time:.2f} seconds")
+print(f"                         : {build_time/60:.2f} minutes")
+
+print("\n⚡ SEARCH PERFORMANCE")
+print("-" * 65)
+print(f"Exact search latency    : {exact_latency:.3f} ms")
+print(f"HNSW search latency     : {hnsw_latency:.3f} ms")
+print(f"Speedup                 : {speedup:.2f}x")
+
+print("\n🎯 ACCURACY")
+print("-" * 65)
+print(f"Recall@10               : {recall:.2%}")
+
+print("\n🧠 WHAT DOES THIS MEAN?")
+print("-" * 65)
+
+print(
+    f"HNSW searched {dataset_size:,} vectors without checking every "
+    "vector for every query."
+)
+
+print(
+    f"It achieved {recall:.2%} Recall@10, meaning that approximately "
+    f"{recall*100:.1f}% of the true top-10 nearest neighbours were found."
+)
+
+print(
+    f"HNSW took about {hnsw_latency:.2f} ms per query, compared with "
+    f"{exact_latency:.2f} ms for exact brute-force search."
+)
+
+print(
+    f"That makes HNSW approximately {speedup:.2f}x faster than the "
+    "exact search for this benchmark."
+)
+
+print("\n📊 EF_SEARCH TRADE-OFF")
+print("-" * 65)
+
+for _, row in benchmark_df.iterrows():
+    print(
+        f"ef_search={int(row['ef_search']):3d}  →  "
+        f"Recall={row['recall_at_10']:.2%}  |  "
+        f"Latency={row['hnsw_avg_latency_ms']:.3f} ms  |  "
+        f"Speedup={row['speedup']:.2f}x"
+    )
+
+print("\n🏆 BEST CONFIGURATION")
+print("-" * 65)
+print(f"M               = {M}")
+print(f"ef_construction = {ef_construction}")
+print(f"ef_search       = {ef_search}")
+print(f"Recall@10       = {recall:.2%}")
+print(f"Speedup         = {speedup:.2f}x")
+
+print("\n⚠️ GRAPH VALIDATION")
+print("-" * 65)
+print(f"Validator status: {final_validation['valid']}")
+
+if not final_validation["valid"]:
+    print(
+        "Note: The validator reports structural issues in the graph. "
+        "However, the benchmark successfully completed and the graph "
+        "achieved the reported Recall@10."
+    )
+
+print("\n" + "=" * 65)
+print("                    BENCHMARK TABLE")
+print("=" * 65)
+
+display(benchmark_df)\n\nCELL 16: Markdown cell\n----------------------------------------------------------------------\nThis cell is empty.\n\nCell source:\n\n\nCELL 17: Code cell\n----------------------------------------------------------------------\nThis cell is empty.\n\nCell source:\n\n\n======================================================================\n05_BENCHMARK.IPYNB\n======================================================================\n\nCELL 1: 05 Benchmark: Full-Dataset HNSW\n----------------------------------------------------------------------\nThis markdown cell documents the project workflow or the purpose of the nearby code.\n\nCell source:\n# 05 Benchmark: Full-Dataset HNSW
+
+This notebook reproduces the established full-dataset benchmark using the existing handwritten HNSW implementation. Exact NumPy search is the ground truth. The HNSW graph is built once and reused for every `ef_search` value.
+
+Recall@10 is not accuracy: it is the fraction of the exact brute-force top-10 neighbors retrieved by HNSW, averaged over the benchmark queries.\n\nCELL 2: Cell 1 - Imports\n----------------------------------------------------------------------\nIt imports import ast, import heapq, import json, import re.\n\nCell source:\n# Cell 1 - Imports
+import ast
+import heapq
+import json
+import re
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from IPython.display import display
+
+print('05_benchmark.ipynb')
+print('====================')
+print('Benchmark environment ready.')\n\nCELL 3: Cell 2 - Configuration\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 2 - Configuration
+BASE_DIR = Path('..')
+EMBEDDING_PATH = BASE_DIR / 'data' / 'embeddings' / 'embeddings.npy'
+IDS_PATH = BASE_DIR / 'data' / 'embeddings' / 'ids.npy'
+HNSW_NOTEBOOK = BASE_DIR / 'notebooks' / '04_fix_hnsw.ipynb'
+TOP_K = 10
+M = 12
+EF_CONSTRUCTION = 100
+EF_SEARCH_VALUES = [10, 20, 50, 100, 200]
+QUERY_COUNT = 500
+RANDOM_SEED = 42
+print('Top-K:', TOP_K)
+print('M:', M)
+print('ef_construction:', EF_CONSTRUCTION)
+print('ef_search values:', EF_SEARCH_VALUES)
+print('Queries:', QUERY_COUNT)\n\nCELL 4: Cell 3 - Load the existing full embeddings and IDs\n----------------------------------------------------------------------\nImportant operations include: embeddings = np.load(EMBEDDING_PATH); ids = np.load(IDS_PATH).\n\nCell source:\n# Cell 3 - Load the existing full embeddings and IDs
+embeddings = np.load(EMBEDDING_PATH)
+ids = np.load(IDS_PATH)
+assert embeddings.ndim == 2 and embeddings.shape[1] == 384
+assert len(embeddings) == len(ids)
+print(f'Number of vectors: {len(embeddings):,}')
+print(f'Dimension: {embeddings.shape[1]}')
+print(f'Embedding dtype: {embeddings.dtype}')
+print(f'Number of IDs: {len(ids):,}')\n\nCELL 5: Cell 4 - Verify embeddings\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 4 - Verify embeddings
+norms = np.linalg.norm(embeddings, axis=1)
+print('Embedding validation')
+print('--------------------')
+print('Minimum norm:', norms.min())
+print('Maximum norm:', norms.max())
+print('Average norm:', norms.mean())
+print('NaN values:', np.isnan(embeddings).sum())
+print('Infinite values:', np.isinf(embeddings).sum())
+assert np.isfinite(embeddings).all()\n\nCELL 6: Cell 5 - Exact brute-force cosine search\n----------------------------------------------------------------------\nIt defines def exact_search. Important operations include: def exact_search(query, vectors, vector_ids, k=TOP_K):.\n\nCell source:\n# Cell 5 - Exact brute-force cosine search
+def exact_search(query, vectors, vector_ids, k=TOP_K):
+    scores = vectors @ query
+    top_indices = np.argpartition(scores, -k)[-k:]
+    top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
+    return [(int(vector_ids[i]), float(scores[i])) for i in top_indices]
+
+print('Exact search is the ground truth.')\n\nCELL 7: Cell 6 - Test exact search\n----------------------------------------------------------------------\nImportant operations include: results = exact_search(query, embeddings, ids, TOP_K).\n\nCell source:\n# Cell 6 - Test exact search
+query = embeddings[0]
+results = exact_search(query, embeddings, ids, TOP_K)
+print('Exact Search')
+print('============')
+for rank, (doc_id, score) in enumerate(results, 1):
+    print(f'Rank {rank:2d} | ID: {doc_id:6d} | Similarity: {score:.4f}')\n\nCELL 8: Cell 7 - Load the existing handwritten HNSW implementation\n----------------------------------------------------------------------\nIt imports from dataclasses import dataclass, field. It defines def notebook_code_cells, def load_existing_hnsw.\n\nCell source:\n# Cell 7 - Load the existing handwritten HNSW implementation
+from dataclasses import dataclass, field
+
+def notebook_code_cells(path):
+    text = path.read_text(encoding='utf-8-sig')
+    if text.lstrip().startswith('<VSCode.Cell'):
+        return re.findall(r'<VSCode\.Cell[^>]*language="python"[^>]*>\n?(.*?)</VSCode\.Cell>', text, flags=re.DOTALL)
+    notebook = json.loads(text)
+    return [''.join(cell.get('source', [])) for cell in notebook.get('cells', []) if cell.get('cell_type') == 'code']
+
+def load_existing_hnsw(path):
+    namespace = {
+        '__name__': 'existing_hnsw',
+        'np': np,
+        'heapq': heapq,
+        'time': time,
+        'dataclass': dataclass,
+        'field': field,
+        'RANDOM_SEED': RANDOM_SEED,
+        'cosine_similarity': lambda a, b: float(np.dot(a, b)),
+    }
+    sources = notebook_code_cells(path)
+    selected = []
+    wanted = ('class HNSWNode:', 'class HNSWIndex:', 'HNSWIndex.search =', 'def validate_graph(self):', 'HNSWIndex.validate_graph =')
+    for source in sources:
+        if any(marker in source for marker in wanted):
+            selected.append(source)
+    for source in selected:
+        tree = ast.parse(source)
+        exec(compile(tree, str(path), 'exec'), namespace)
+    if 'HNSWIndex' not in namespace:
+        raise RuntimeError(f'HNSWIndex was not found in {path}')
+    return namespace['HNSWIndex']
+
+HNSWIndex = load_existing_hnsw(HNSW_NOTEBOOK)
+print(f'Loaded handwritten HNSWIndex from {HNSW_NOTEBOOK}')
+print('No external vector index library is used.')\n\nCELL 9: Cell 8 - Build HNSW once\n----------------------------------------------------------------------\nImportant operations include: hnsw.insert(vector, int(ids[i])).\n\nCell source:\n# Cell 8 - Build HNSW once
+print('Building HNSW once on the full dataset...')
+print('This is the expensive cell.')
+start = time.perf_counter()
+hnsw = HNSWIndex(M=M, ef_construction=EF_CONSTRUCTION, ef_search=EF_SEARCH_VALUES[-1], seed=RANDOM_SEED)
+for i, vector in enumerate(embeddings):
+    hnsw.insert(vector, int(ids[i]))
+    if (i + 1) % 10_000 == 0:
+        elapsed = time.perf_counter() - start
+        print(f'Inserted {i + 1:,}/{len(embeddings):,} in {elapsed:.1f}s')
+build_time = time.perf_counter() - start
+print(f'Vectors inserted: {len(embeddings):,}')
+print(f'Build time: {build_time:.3f} seconds')\n\nCELL 10: Cell 9 - Basic HNSW information and graph validation\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 9 - Basic HNSW information and graph validation
+print('HNSW Structure')
+print('==============')
+print('Entry point:', hnsw.entry_point)
+print('Maximum level:', hnsw.max_level)
+if hasattr(hnsw, 'graph'):
+    print('Number of layers:', len(hnsw.graph))
+    for level, layer in enumerate(hnsw.graph):
+        print(f'Layer {level}: {len(layer):,} nodes')
+
+if hasattr(hnsw, 'validate_graph'):
+    validation = hnsw.validate_graph()
+    print('Graph valid:', validation.get('valid'))
+    if validation.get('issues'):
+        print('Validation issues:')
+        for issue in validation['issues'][:10]:
+            print(' -', issue)
+else:
+    validation = {'valid': None, 'issues': []}
+    print('validate_graph() is not available.')\n\nCELL 11: Cell 10 - Reproducible benchmark queries\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 10 - Reproducible benchmark queries
+rng = np.random.default_rng(RANDOM_SEED)
+query_indices = rng.choice(len(embeddings), size=min(QUERY_COUNT, len(embeddings)), replace=False)
+queries = embeddings[query_indices]
+print(f'Benchmark queries: {len(queries)}')
+print('Query seed:', RANDOM_SEED)\n\nCELL 12: Cell 11 - Compute exact ground truth\n----------------------------------------------------------------------\nImportant operations include: ground_truth.append([doc_id for doc_id, _ in exact_search(query, embeddings, ids, TOP_K)]).\n\nCell source:\n# Cell 11 - Compute exact ground truth
+print('Computing exact ground truth...')
+ground_truth = []
+start = time.perf_counter()
+for query in queries:
+    ground_truth.append([doc_id for doc_id, _ in exact_search(query, embeddings, ids, TOP_K)])
+ground_truth_time = time.perf_counter() - start
+print(f'Ground truth generated in {ground_truth_time:.3f} seconds')\n\nCELL 13: Cell 12 - Normalize the existing HNSW search return format\n----------------------------------------------------------------------\nIt defines def result_ids, def hnsw_search_ids, def calculate_recall. Important operations include: raw = index.search(query, k=k, ef_search=ef_search); raw = index.search(query, k=k); raw = index.search(query, k).\n\nCell source:\n# Cell 12 - Normalize the existing HNSW search return format
+def result_ids(search_results, index):
+    found = []
+    for item in search_results:
+        if isinstance(item, dict):
+            if 'id' in item:
+                found.append(int(item['id']))
+            elif 'index' in item:
+                found.append(int(index.ids[item['index']]))
+            continue
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            first, second = item
+            if isinstance(second, (int, np.integer)) and hasattr(index, 'ids'):
+                found.append(int(index.ids[int(second)]))
+            elif isinstance(first, (int, np.integer)):
+                found.append(int(first))
+    return found
+
+def hnsw_search_ids(index, query, k, ef_search):
+    if hasattr(index, 'ef_search'):
+        index.ef_search = int(ef_search)
+    try:
+        raw = index.search(query, k=k, ef_search=ef_search)
+    except TypeError:
+        try:
+            raw = index.search(query, k=k)
+        except TypeError:
+            raw = index.search(query, k)
+    return result_ids(raw, index)[:k]
+
+def calculate_recall(predicted, actual, k=TOP_K):
+    return len(set(predicted[:k]) & set(actual[:k])) / k
+
+print('Search adapter ready for the existing implementation.')\n\nCELL 14: Cell 13 - Benchmark exact search latency\n----------------------------------------------------------------------\nImportant operations include: exact_search(query, embeddings, ids, TOP_K).\n\nCell source:\n# Cell 13 - Benchmark exact search latency
+exact_times = []
+for query in queries:
+    start = time.perf_counter()
+    exact_search(query, embeddings, ids, TOP_K)
+    exact_times.append((time.perf_counter() - start) * 1000)
+exact_avg = float(np.mean(exact_times))
+exact_median = float(np.median(exact_times))
+print(f'Exact average: {exact_avg:.3f} ms')
+print(f'Exact median:  {exact_median:.3f} ms')\n\nCELL 15: Cell 14 - Benchmark HNSW ef_search trade-off\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 14 - Benchmark HNSW ef_search trade-off
+benchmark_results = []
+print('HNSW Benchmark')
+print('==============')
+for ef in EF_SEARCH_VALUES:
+    start = time.perf_counter()
+    predicted = [hnsw_search_ids(hnsw, query, TOP_K, ef) for query in queries]
+    elapsed = time.perf_counter() - start
+    latencies = elapsed / len(queries) * 1000
+    recalls = [calculate_recall(p, truth, TOP_K) for p, truth in zip(predicted, ground_truth)]
+    recall = float(np.mean(recalls))
+    benchmark_results.append({
+        'dataset_size': len(embeddings),
+        'M': M,
+        'ef_construction': EF_CONSTRUCTION,
+        'ef_search': ef,
+        'build_time_sec': build_time,
+        'exact_avg_latency_ms': exact_avg,
+        'hnsw_avg_latency_ms': latencies,
+        'recall_at_10': recall,
+        'speedup': exact_avg / latencies if latencies else np.nan,
+    })
+    print(f'ef_search={ef:3d} | Recall@10={recall:.2%} | HNSW={latencies:.3f} ms | Speedup={exact_avg / latencies:.2f}x')\n\nCELL 16: Cell 15 - Results table\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 15 - Results table
+benchmark_df = pd.DataFrame(benchmark_results)
+display(benchmark_df.style.format({
+    'build_time_sec': '{:.3f}',
+    'exact_avg_latency_ms': '{:.3f}',
+    'hnsw_avg_latency_ms': '{:.3f}',
+    'recall_at_10': '{:.2%}',
+    'speedup': '{:.2f}x',
+}))\n\nCELL 17: Cell 16 - Best tested configuration\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 16 - Best tested configuration
+best_row = benchmark_df.loc[benchmark_df['recall_at_10'].idxmax()]
+print('BEST CONFIGURATION')
+print('==================')
+print(f'M: {int(best_row["M"])}')
+print(f'ef_construction: {int(best_row["ef_construction"])}')
+print(f'ef_search: {int(best_row["ef_search"])}')
+print(f'Recall@10: {best_row["recall_at_10"]:.2%}')
+print(f'HNSW latency: {best_row["hnsw_avg_latency_ms"]:.3f} ms')
+print(f'Speedup: {best_row["speedup"]:.2f}x')\n\nCELL 18: Cell 17 - Demonstrate a real vector query\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 17 - Demonstrate a real vector query
+query_index = 0
+query = queries[query_index]
+results = hnsw_search_ids(hnsw, query, 5, int(best_row['ef_search']))
+print('Example Vector Search')
+print('=====================')
+for rank, doc_id in enumerate(results, 1):
+    score = float(embeddings[np.where(ids == doc_id)[0][0]] @ query)
+    print(f'Rank {rank} | ID: {doc_id} | Score: {score:.4f}')\n\nCELL 19: Cell 18 - Save benchmark results\n----------------------------------------------------------------------\nImportant operations include: benchmark_df.to_csv(RESULTS_PATH, index=False).\n\nCell source:\n# Cell 18 - Save benchmark results
+RESULTS_PATH = BASE_DIR / 'data' / 'benchmark_results.csv'
+benchmark_df.to_csv(RESULTS_PATH, index=False)
+print('Benchmark results saved to:')
+print(RESULTS_PATH)\n\nCELL 20: Cell 19 - Final results\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 19 - Final results
+print()
+print('=' * 60)
+print('FINAL VECTOR DATABASE BENCHMARK')
+print('=' * 60)
+print(f'Dataset size       : {len(embeddings):,} vectors')
+print(f'Vector dimension    : {embeddings.shape[1]}')
+print(f'M                  : {int(best_row["M"])}')
+print(f'ef_construction    : {int(best_row["ef_construction"])}')
+print(f'ef_search          : {int(best_row["ef_search"])}')
+print(f'Build time         : {best_row["build_time_sec"]:.3f} sec')
+print(f'Exact latency      : {best_row["exact_avg_latency_ms"]:.3f} ms')
+print(f'HNSW latency       : {best_row["hnsw_avg_latency_ms"]:.3f} ms')
+print(f'Speedup            : {best_row["speedup"]:.2f}x')
+print(f'Recall@10          : {best_row["recall_at_10"]:.2%}')
+print(f'Graph validation   : {validation.get("valid")}')
+print('=' * 60)\n\nCELL 21: Cell 20 - Plain-English interpretation\n----------------------------------------------------------------------\nIt performs the calculations, configuration, display, or checks shown in the source code.\n\nCell source:\n# Cell 20 - Plain-English interpretation
+recall_pct = best_row['recall_at_10'] * 100
+print('PROJECT RESULT IN SIMPLE WORDS')
+print('===============================')
+print(f'We indexed {len(embeddings):,} document embeddings.')
+print(f'Each embedding has {embeddings.shape[1]} dimensions.')
+print('Exact search checks every vector and provides the ground-truth top-10.')
+print('HNSW searches a graph and avoids checking every vector for each query.')
+print(f'Recall@10 was {recall_pct:.1f}%, meaning HNSW retrieved about {recall_pct / 10:.2f} of the 10 exact neighbors on average.')
+print(f'HNSW was approximately {best_row["speedup"]:.2f}x faster for this benchmark.')
+print('Higher ef_search generally increases recall and latency together.')\n\nCELL 22: Code cell\n----------------------------------------------------------------------\nThis cell is empty.\n\nCell source:\n\n\nCELL 23: Cell 21 - Generate complete project reports\n----------------------------------------------------------------------\nIt imports import json, from datetime import datetime. It defines def load_notebook, def source_text, def output_text, def cell_heading, def explain_cell. Important operations include: if any(token in stripped for token in ('np.load', 'read_parquet', 'read_json', 'to_csv', 'encode(', 'insert(', 'search(')):.\n\nCell source:\n# Cell 21 - Generate complete project reports
+# This cell reads only notebooks 01-05 from the active notebooks folder.
+# It excludes notebooks/not_needed and does not execute or modify any notebook.
+
+import json
+from datetime import datetime
+
+ACTIVE_NOTEBOOKS = [
+    BASE_DIR / 'notebooks' / '01_data_exploration.ipynb',
+    BASE_DIR / 'notebooks' / '02_embedding_collab.ipynb',
+    BASE_DIR / 'notebooks' / '03_exact_search.ipynb',
+    BASE_DIR / 'notebooks' / '04_fix_hnsw.ipynb',
+    BASE_DIR / 'notebooks' / '05_benchmark.ipynb',
+]
+
+BENCHMARK_REPORT_PATH = BASE_DIR / 'benchmark.txt'
+EXPLANATION_REPORT_PATH = BASE_DIR / 'explanation.txt'
+
+
+def load_notebook(path):
+    with open(path, 'r', encoding='utf-8-sig') as file:
+        return json.load(file)
+
+
+def source_text(cell):
+    source = cell.get('source', '')
+    return ''.join(source) if isinstance(source, list) else str(source)
+
+
+def output_text(output):
+    output_type = output.get('output_type', '')
+    if output_type == 'stream':
+        value = output.get('text', '')
+    elif output_type in {'execute_result', 'display_data', 'error'}:
+        data = output.get('data', {})
+        value = data.get('text/plain', '')
+        if not value and output_type == 'error':
+            value = '\\n'.join(output.get('traceback', []))
+    else:
+        value = output.get('text', '')
+
+    if isinstance(value, list):
+        return ''.join(value)
+    return str(value)
+
+
+def cell_heading(cell, cell_number):
+    source = source_text(cell).strip()
+    first_line = source.splitlines()[0].strip() if source else ''
+    if first_line.startswith('#'):
+        return first_line.lstrip('#').strip()
+    if cell.get('cell_type') == 'markdown':
+        for line in source.splitlines():
+            if line.strip():
+                return line.lstrip('#').strip()
+    return f'{cell.get("cell_type", "unknown").title()} cell'
+
+
+def explain_cell(cell, cell_number):
+    source = source_text(cell).strip()
+    if not source:
+        return 'This cell is empty.'
+    if cell.get('cell_type') == 'markdown':
+        return 'This markdown cell documents the project workflow or the purpose of the nearby code.'
+
+    lines = source.splitlines()
+    definitions = []
+    imports = []
+    actions = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(('def ', 'class ')):
+            definitions.append(stripped.split('(')[0].rstrip(':'))
+        if stripped.startswith(('import ', 'from ')):
+            imports.append(stripped)
+        if any(token in stripped for token in ('np.load', 'read_parquet', 'read_json', 'to_csv', 'encode(', 'insert(', 'search(')):
+            actions.append(stripped)
+
+    parts = []
+    if imports:
+        parts.append('It imports ' + ', '.join(imports[:4]) + '.')
+    if definitions:
+        parts.append('It defines ' + ', '.join(definitions[:8]) + '.')
+    if actions:
+        parts.append('Important operations include: ' + '; '.join(actions[:5]) + '.')
+    if not parts:
+        parts.append('It performs the calculations, configuration, display, or checks shown in the source code.')
+    return ' '.join(parts)
+
+
+benchmark_sections = []
+explanation_sections = [
+    'VECTOR DATABASE PROJECT EXPLANATION',
+    '====================================',
+    'Generated: ' + datetime.now().isoformat(timespec='seconds'),
+    '',
+    'This report explains every cell in the active notebooks 01 through 05.',
+    'The notebooks under notebooks/not_needed are intentionally excluded.',
+    '',
+]
+
+for notebook_path in ACTIVE_NOTEBOOKS:
+    if not notebook_path.exists():
+        benchmark_sections.append(f'MISSING NOTEBOOK: {notebook_path.name}')
+        explanation_sections.append(f'WARNING: {notebook_path.name} was not found.')
+        continue
+
+    notebook = load_notebook(notebook_path)
+    notebook_name = notebook_path.name
+    cells = notebook.get('cells', [])
+
+    benchmark_sections.extend([
+        '',
+        '=' * 70,
+        notebook_name.upper(),
+        '=' * 70,
+    ])
+    explanation_sections.extend([
+        '',
+        '=' * 70,
+        notebook_name.upper(),
+        '=' * 70,
+    ])
+
+    for cell_number, cell in enumerate(cells, 1):
+        heading = cell_heading(cell, cell_number)
+        source = source_text(cell).strip()
+        explanation = explain_cell(cell, cell_number)
+
+        explanation_sections.extend([
+            '',
+            f'CELL {cell_number}: {heading}',
+            '-' * 70,
+            explanation,
+            '',
+            'Cell source:',
+            source,
+        ])
+
+        outputs = [output_text(output).strip() for output in cell.get('outputs', [])]
+        outputs = [output for output in outputs if output]
+        if outputs:
+            benchmark_sections.extend([
+                '',
+                f'CELL {cell_number}: {heading}',
+                '-' * 70,
+            ])
+            benchmark_sections.extend(outputs)
+
+    if not any(cell.get('outputs') for cell in cells):
+        benchmark_sections.append('No saved output was found in this notebook.')
+
+benchmark_sections.extend([
+    '',
+    '=' * 70,
+    'CURRENT CELL 21 STATUS',
+    '=' * 70,
+    'benchmark.txt contains saved human-readable outputs from active notebooks 01-05.',
+    'explanation.txt contains a cell-by-cell explanation and source listing for active notebooks 01-05.',
+])
+
+BENCHMARK_REPORT_PATH.write_text('\\n'.join(benchmark_sections) + '\\n', encoding='utf-8')
+EXPLANATION_REPORT_PATH.write_text('\\n'.join(explanation_sections) + '\\n', encoding='utf-8')
+
+print('Reports generated successfully.')
+print('Benchmark report:', BENCHMARK_REPORT_PATH)
+print('Explanation report:', EXPLANATION_REPORT_PATH)
+print('Included notebooks:', ', '.join(path.name for path in ACTIVE_NOTEBOOKS if path.exists()))\n

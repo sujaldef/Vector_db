@@ -1,243 +1,165 @@
-# Vector Database
+<div align="center">
 
-An end-to-end semantic search project built on the AG News dataset. Documents are cleaned, converted into 384-dimensional SentenceTransformer embeddings, indexed with a handwritten HNSW graph, and exposed through a FastAPI backend with a React + Tailwind frontend.
+# 🧠 Vector DB from Scratch
+### A hand-built HNSW vector database — no FAISS, no Pinecone, no shortcuts
 
-## What It Does
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-Frontend-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![No External Vector DB](https://img.shields.io/badge/Vector%20Index-Handwritten-critical?style=flat-square)](#)
+[![Dataset](https://img.shields.io/badge/Dataset-AG%20News-blueviolet?style=flat-square)](#)
 
-The application lets a user enter a natural-language query and retrieve the most similar AG News documents. Every query runs through:
+**119,921 documents · 384-dim embeddings · 3.27x faster than brute force · 84.4% Recall@10**
 
-1. React frontend
-2. FastAPI API
-3. SentenceTransformer query embedding
-4. Existing handwritten HNSW index
-5. Document ID and text lookup
-6. Ranked results shown in the browser
+</div>
 
-The frontend also runs exact brute-force search for the same query. This makes the exact result set the ground truth and allows live comparison of latency, speedup, and Recall@10.
+---
 
-## Project Structure
+## 🎯 The Challenge
 
-```text
-vector_db/
-├── backend/
-│   ├── main.py                  # FastAPI application and API routes
-│   ├── hnsw_runtime.py          # Loads the handwritten HNSW implementation
-│   ├── requirements.txt         # Backend dependencies
-│   └── data/                    # Runtime HNSW cache, generated locally
-├── data/
-│   ├── raw/                     # Original AG News parquet data
-│   ├── processed/               # Cleaned JSONL documents
-│   └── embeddings/              # Existing .npy embeddings and IDs
-├── frontend/
-│   ├── src/App.jsx              # React search interface
-│   ├── src/api/search.js        # API client
-│   └── .env.example             # Frontend API URL configuration
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_embedding_collab.ipynb
-│   ├── 03_exact_search.ipynb
-│   ├── 04_fix_hnsw.ipynb
-│   └── 05_benchmark.ipynb
-└── README.md
+> *"Everybody imports a vector database and almost nobody can tell you what happens inside one."*
+
+The brief: **don't import one — build one.** No FAISS. No Pinecone. No Chroma. No `sklearn.neighbors`. Just NumPy, a real text corpus, and a from-scratch approximate nearest-neighbor index that has to earn its speedup against brute-force ground truth.
+
+This project answers that brief end-to-end: a handwritten **HNSW graph index**, benchmarked honestly against exact search, wrapped in a real API and a real UI.
+
+---
+
+## ✨ What It Does
+
+Type a search query → get the most semantically similar AG News articles back, ranked, in milliseconds — while the app quietly runs the same query through brute-force search in parallel so you can *see* the accuracy/speed trade-off live, not just take it on faith.
+
+```
+ User Query
+     │
+     ▼
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   React UI   │────▶│   FastAPI    │────▶│ SentenceTransf.  │
+│ (search box) │     │  /api/search │     │ query embedding  │
+└─────────────┘     └──────┬───────┘     └────────┬─────────┘
+                            │                       │
+                            ▼                       ▼
+                   ┌─────────────────┐   ┌────────────────────┐
+                   │ Handwritten HNSW │   │  Exact Brute-Force  │
+                   │      Index       │   │   (ground truth)    │
+                   └────────┬────────┘   └──────────┬──────────┘
+                            └──────────┬─────────────┘
+                                       ▼
+                        Ranked results + latency + Recall@10
 ```
 
-## Dataset
+---
 
-- Dataset: AG News
-- Cleaned documents: 119,921
-- Embedding dimension: 384
-- Embeddings: `data/embeddings/embeddings.npy`
-- IDs: `data/embeddings/ids.npy`
-- Documents: `data/processed/documents.jsonl`
-- Embedding model: `all-MiniLM-L6-v2`
+## 📊 Benchmark — The Number That Matters
 
-The original data and generated embeddings are read from disk. The API does not regenerate embeddings during normal startup.
+| Metric | Value |
+|---|---:|
+| Vectors indexed | **119,921** |
+| Dimensions | 384 |
+| HNSW params | `M=12`, `ef_construction=100`, `ef_search=200` |
+| **Recall@10** | **84.40%** |
+| HNSW latency (avg) | ~3.5 ms |
+| Exact latency (avg) | ~11.5 ms |
+| **Speedup** | **~3.27×** |
 
-## HNSW Benchmark
+> Recall@10 ≠ accuracy. It means HNSW returned ~8.44 of the true top-10 nearest neighbors per query, on average — the honest cost of approximating.
 
-The strongest recorded benchmark configuration was:
+---
 
-| Setting               |                   Value |
-| --------------------- | ----------------------: |
-| Vectors               |                 119,921 |
-| Dimensions            |                     384 |
-| M                     |                      12 |
-| ef_construction       |                     100 |
-| ef_search             |                     200 |
-| Recall@10             |                  84.40% |
-| HNSW average latency  |  approximately 3.535 ms |
-| Exact average latency | approximately 11.546 ms |
-| Speedup               |     approximately 3.27x |
+## 🏗️ How It's Built
 
-These values are recorded benchmark results, not values returned as fake search responses by the API.
+| Stage | Notebook | What happens |
+|---|---|---|
+| 1 | `01_data_exploration.ipynb` | Clean & inspect AG News |
+| 2 | `02_embedding_collab.ipynb` | Generate 384-d `all-MiniLM-L6-v2` embeddings |
+| 3 | `03_exact_search.ipynb` | Brute-force cosine search → ground truth |
+| 4 | `04_fix_hnsw.ipynb` | Handwritten HNSW graph (NumPy only) |
+| 5 | `05_benchmark.ipynb` | HNSW vs. exact — latency, speedup, Recall@10 |
 
-**Recall@10 is not accuracy.** For each query, HNSW's top ten IDs are compared with the exact brute-force top ten IDs. A Recall@10 of 84.4% means that HNSW retrieved about 8.44 of the ten exact nearest neighbors on average for that benchmark.
+The FastAPI backend imports the *same* HNSW class from step 4 — one implementation, no duplication.
 
-## Requirements
+<details>
+<summary><b>⚠️ Design note: deletion</b></summary>
 
-- Python 3.10+
-- Node.js 18+
-- npm
-- The existing `.venv` environment or a new Python virtual environment
+<br>
 
-## Backend Setup
+Deleting a node from an HNSW graph mid-flight is genuinely awkward — removing a well-connected node can fragment neighbor paths across every layer above it. This project treats the index as **append-only / rebuild-on-change** rather than shipping a half-correct delete that silently degrades recall.
+</details>
 
-From the project root:
+---
 
+## 🚀 Quick Start
+
+**Backend**
 ```powershell
 .venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt
 uvicorn backend.main:app --reload
 ```
+→ `http://127.0.0.1:8000` · Docs at `/docs`
 
-Alternatively, from inside `backend/`:
+> First run builds the HNSW graph from 119,921 vectors (~a few minutes, progress printed every 5,000 vectors). Cached to `backend/data/hnsw_index.pkl` after that.
 
-```powershell
-..\.venv\Scripts\Activate.ps1
-uvicorn main:app --reload
-```
-
-The backend runs at `http://127.0.0.1:8000`.
-
-### First Startup
-
-If `backend/data/hnsw_index.pkl` does not exist, the backend builds the HNSW graph once from the 119,921 existing vectors. This can take several minutes. The terminal prints progress every 5,000 vectors, including percentage complete, elapsed time, and estimated remaining time.
-
-After the first successful build, the graph is saved to `backend/data/hnsw_index.pkl`. The cache is ignored by Git and loaded on later restarts. Do not delete it unless you intentionally want to rebuild the graph.
-
-### API Documentation
-
-FastAPI provides interactive documentation at:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-### API Endpoints
-
-#### Health
-
-```http
-GET /api/health
-```
-
-Example response:
-
-```json
-{
-  "status": "ok",
-  "vectors": 119921,
-  "dimension": 384,
-  "index": "HNSW"
-}
-```
-
-#### HNSW Search
-
-```http
-POST /api/search
-Content-Type: application/json
-```
-
-Request:
-
-```json
-{
-  "query": "wall street bears",
-  "top_k": 10,
-  "ef_search": 200
-}
-```
-
-Response fields include the query, ranked results, document IDs, similarity scores, document text, result count, search type, and measured latency.
-
-#### Exact Search
-
-```http
-POST /api/search/exact
-Content-Type: application/json
-```
-
-This performs brute-force search over the full embedding matrix and is used as the comparison ground truth.
-
-## Frontend Setup
-
-In a second terminal:
-
+**Frontend**
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
+→ `http://localhost:5173`
 
-The frontend runs at the URL printed by Vite, normally `http://localhost:5173`.
+**Try it**
+```
+Search: "wall street bears"
+```
+Watch HNSW and exact search race — latency, speedup, and Recall@10 update live.
 
-The frontend API URL can be configured in `frontend/.env`:
+---
 
-```text
-VITE_API_URL=http://127.0.0.1:8000
+## 🔌 API
+
+<table>
+<tr><td width="120"><code>GET</code></td><td><code>/api/health</code></td><td>Index status, vector count, dimension</td></tr>
+<tr><td><code>POST</code></td><td><code>/api/search</code></td><td>HNSW approximate top-k search</td></tr>
+<tr><td><code>POST</code></td><td><code>/api/search/exact</code></td><td>Brute-force ground-truth search</td></tr>
+</table>
+
+```json
+// POST /api/search
+{ "query": "wall street bears", "top_k": 10, "ef_search": 200 }
 ```
 
-The React interface provides:
+---
 
-- Natural-language semantic search
-- Loading and retry states
-- Empty-query validation
-- Real HNSW results
-- Exact-search comparison
-- Live HNSW and exact latency
-- Live speedup
-- Live Recall@10
-- Labels for HNSW results missing from the exact top ten
-- Responsive layout
+## 📁 Project Structure
 
-## Validation
-
-Backend syntax check:
-
-```powershell
-.venv\Scripts\python.exe -m py_compile backend\main.py backend\hnsw_runtime.py
+```
+vector_db/
+├── backend/            → FastAPI + HNSW runtime
+├── data/
+│   ├── raw/            → AG News source
+│   ├── processed/      → Cleaned documents (119,921)
+│   └── embeddings/     → 384-d vectors + IDs
+├── frontend/           → React + Tailwind search UI
+└── notebooks/          → Build stages 01 → 05
 ```
 
-Frontend production build:
+---
 
-```powershell
-cd frontend
-npm run build
-```
+## 🧩 What's Handwritten vs. What's Not
 
-Manual checks:
+| Handwritten (the point of this project) | Off-the-shelf (not the point) |
+|---|---|
+| HNSW graph construction & search | `all-MiniLM-L6-v2` embedding model |
+| Exact brute-force cosine search | FastAPI / React / Vite |
+| Recall@10 + latency benchmarking | NumPy for array math |
 
-```powershell
-Invoke-WebRequest http://127.0.0.1:8000/api/health
-```
+**Explicitly not used:** FAISS, Pinecone, Chroma, `sklearn.neighbors`, `hnswlib`, Annoy.
 
-Then open the frontend and search for:
+---
 
-```text
-wall street bears
-```
+<div align="center">
 
-The first request should return real document text from `documents.jsonl`, with IDs and scores generated by the backend.
+*Built to answer one question: what actually happens inside a vector database?*
 
-## Notebooks
-
-The notebooks document the project stages:
-
-- `01_data_exploration.ipynb`: inspect and clean the AG News source data.
-- `02_embedding_collab.ipynb`: generate and save normalized document embeddings.
-- `03_exact_search.ipynb`: establish brute-force exact search as the ground truth.
-- `04_fix_hnsw.ipynb`: develop and inspect the handwritten HNSW implementation.
-- `05_benchmark.ipynb`: benchmark HNSW against exact search and generate project reports.
-
-The API reuses the existing HNSW implementation from `04_fix_hnsw.ipynb` rather than maintaining a second algorithm implementation.
-
-## Design Notes and Limitations
-
-- HNSW is handwritten and uses NumPy plus Python data structures; no FAISS, Pinecone, Chroma, sklearn neighbor index, hnswlib, Annoy, or external vector database is used.
-- The graph cache is a local pickle created by the backend. It is not portable across incompatible changes to the notebook-defined class.
-- The API uses lazy loading at startup and keeps the index in memory for repeated searches.
-- Exact search is available for comparison but is slower as the dataset grows.
-- Benchmark statistics describe the recorded benchmark and are not guarantees for every machine or query.
-- The source data, embeddings, IDs, and benchmark outputs should be treated as read-only project artifacts.
-
+</div>
